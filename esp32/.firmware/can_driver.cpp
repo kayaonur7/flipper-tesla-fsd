@@ -109,7 +109,14 @@ public:
     Mcp2515Driver() : mcp_(PIN_MCP_CS) {}
 
     bool begin(bool listen_only) override {
+#if defined(ARDUINO_ARCH_ESP8266)
+        // ESP8266 HSPI pins (SCK/MISO/MOSI) are fixed in silicon — SPI.begin()
+        // does not accept pin arguments.  Only the CS pin is configurable, and
+        // it is handled inside the MCP2515 library via the ctor.
+        SPI.begin();
+#else
         SPI.begin(PIN_MCP_SCK, PIN_MCP_MISO, PIN_MCP_MOSI, PIN_MCP_CS);
+#endif
         SPI.setFrequency(8000000);
 
         mcp_.reset();

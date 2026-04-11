@@ -12,16 +12,23 @@
  */
 
 #include "web_dashboard.h"
-#include <WebServer.h>
-#include <WebSocketsServer.h>
+#if defined(ARDUINO_ARCH_ESP8266)
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+typedef ESP8266WebServer HttpServer;
+#else
 #include <WiFi.h>
+#include <WebServer.h>
+typedef WebServer HttpServer;
+#endif
+#include <WebSocketsServer.h>
 #include <Arduino.h>
 
 // ── Module state ──────────────────────────────────────────────────────────────
 static FSDState  *g_state = nullptr;   // shared with main
 static CanDriver *g_can   = nullptr;   // for setListenOnly()
 
-static WebServer        g_http(80);
+static HttpServer       g_http(80);
 static WebSocketsServer g_ws(81);
 
 static uint32_t g_start_ms    = 0;
@@ -155,7 +162,7 @@ input:checked+.sl2:before{transform:translateX(20px);background:#fff}
 <!-- Header -->
 <div class="hdr">
   <h1>Tesla FSD</h1>
-  <div class="sub">ESP32 CAN Controller &middot; 192.168.4.1</div>
+  <div class="sub">CAN Controller &middot; 192.168.4.1</div>
   <div class="cdot" id="dot"></div>
 </div>
 <div id="connErr" class="err">Connection lost &mdash; retrying&hellip;</div>
@@ -253,7 +260,7 @@ input:checked+.sl2:before{transform:translateX(20px);background:#fff}
   </div>
 </div>
 
-<div class="foot">Tesla FSD ESP32 &middot; M5Stack ATOM Lite + ATOMIC CAN Base</div>
+<div class="foot">Tesla FSD &middot; CAN bus controller</div>
 </div><!-- /wrap -->
 
 <script>

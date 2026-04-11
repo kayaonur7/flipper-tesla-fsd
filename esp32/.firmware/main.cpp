@@ -208,13 +208,21 @@ void setup() {
     delay(300);
 
     Serial.println("\n============================");
+#if defined(ARDUINO_ARCH_ESP8266)
+    Serial.println(" Tesla FSD Unlock — NodeMCU ");
+#else
     Serial.println(" Tesla FSD Unlock — ESP32   ");
+#endif
     Serial.println("============================");
     Serial.printf("[FSD] Build: %s %s\n", __DATE__, __TIME__);
 #if defined(CAN_DRIVER_TWAI)
     Serial.println("[CAN] Driver: ESP32 TWAI (M5Stack ATOM Lite + ATOMIC CAN Base)");
 #elif defined(CAN_DRIVER_MCP2515)
+  #if defined(ARDUINO_ARCH_ESP8266)
+    Serial.println("[CAN] Driver: MCP2515 via HSPI (NodeMCU v2 / ESP8266)");
+  #else
     Serial.println("[CAN] Driver: MCP2515 via SPI");
+  #endif
 #endif
 
     pinMode(PIN_BUTTON, INPUT_PULLUP);

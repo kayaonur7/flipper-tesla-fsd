@@ -14,7 +14,27 @@
 #define CAN_ID_FOLLOW_DIST    0x3F8u  // 1016 - DAS_followDistance: speed profile source
 #define CAN_ID_AP_CONTROL     0x3FDu  // 1021 - DAS_autopilotControl: HW3 / HW4 core
 
-// ── GPIO — M5Stack ATOM Lite + ATOMIC CAN Base (CA-IS3050G) ──────────────────
+// ── GPIO pin mapping ─────────────────────────────────────────────────────────
+#if defined(ARDUINO_ARCH_ESP8266)
+// NodeMCU v2 (ESP8266) + MCP2515 SPI CAN module.
+//
+// ESP8266 has no native CAN peripheral, so only the MCP2515 driver is usable
+// here.  HSPI pins are fixed in silicon; only CS is configurable.  We pick D1
+// (GPIO5) for CS to avoid bootstrap pins (GPIO0/2/15).
+//
+// There is no TWAI TX/RX pin on this board, so PIN_CAN_TX / PIN_CAN_RX are
+// intentionally omitted — the TWAI driver cannot be selected on ESP8266.
+#define PIN_LED       2   // D4, onboard blue LED (active-LOW)
+#define PIN_BUTTON    0   // D3, onboard FLASH button (active-LOW, pull-up)
+
+// MCP2515 SPI (HSPI) — SCK/MISO/MOSI are hardwired on ESP8266
+#define PIN_MCP_CS    5   // D1 — safe non-bootstrap pin
+#define PIN_MCP_SCK  14   // D5 — HSPI SCK (fixed)
+#define PIN_MCP_MISO 12   // D6 — HSPI MISO (fixed)
+#define PIN_MCP_MOSI 13   // D7 — HSPI MOSI (fixed)
+
+#else
+// M5Stack ATOM Lite + ATOMIC CAN Base (CA-IS3050G) — default ESP32 mapping
 #define PIN_CAN_TX   22   // TWAI TX → ATOMIC CAN Base TX
 #define PIN_CAN_RX   19   // TWAI RX ← ATOMIC CAN Base RX
 #define PIN_LED      27   // SK6812 NeoPixel (single LED)
@@ -26,6 +46,7 @@
 #define PIN_MCP_SCK  18
 #define PIN_MCP_MISO 19
 #define PIN_MCP_MOSI 23
+#endif
 
 // MCP2515 oscillator: common Chinese modules use 8 MHz
 #define MCP_CRYSTAL_MHZ  MCP_8MHZ   // from autowp-mcp2515 CAN_CLOCK enum
