@@ -19,8 +19,13 @@
 // NodeMCU v2 (ESP8266) + MCP2515 SPI CAN module.
 //
 // ESP8266 has no native CAN peripheral, so only the MCP2515 driver is usable
-// here.  HSPI pins are fixed in silicon; only CS is configurable.  We pick D1
-// (GPIO5) for CS to avoid bootstrap pins (GPIO0/2/15).
+// here.  HSPI pins are fixed in silicon; only CS is configurable.  We pick D8
+// (GPIO15) for CS — this is the native HSPI SS pin.  GPIO15 is a bootstrap
+// pin that must be LOW at boot, but the NodeMCU board has a 10k pull-down
+// soldered on GPIO15 which handles this.  After boot the firmware drives it
+// HIGH (SPI CS idle).  Note: a minority of cheap MCP2515 modules have a
+// pull-up on their CS line which can fight the pull-down — if your board
+// refuses to boot, move CS to D1/GPIO5 (a plain, non-bootstrap pin).
 //
 // There is no TWAI TX/RX pin on this board, so PIN_CAN_TX / PIN_CAN_RX are
 // intentionally omitted — the TWAI driver cannot be selected on ESP8266.
@@ -28,7 +33,7 @@
 #define PIN_BUTTON    0   // D3, onboard FLASH button (active-LOW, pull-up)
 
 // MCP2515 SPI (HSPI) — SCK/MISO/MOSI are hardwired on ESP8266
-#define PIN_MCP_CS    5   // D1 — safe non-bootstrap pin
+#define PIN_MCP_CS   15   // D8 — native HSPI SS (bootstrap pin, pull-down on NodeMCU)
 #define PIN_MCP_SCK  14   // D5 — HSPI SCK (fixed)
 #define PIN_MCP_MISO 12   // D6 — HSPI MISO (fixed)
 #define PIN_MCP_MOSI 13   // D7 — HSPI MOSI (fixed)

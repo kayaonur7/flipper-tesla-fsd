@@ -100,12 +100,14 @@ Any ESP32 board + CAN transceiver works. Change the build environment in `platfo
 - ESP32 + SN65HVD230 (TWAI driver, cheapest option)
 - ESP32 + MCP2515 module (SPI driver, use `esp32-mcp2515` env)
 - ESP32-C3/S3 Super Mini + SN65HVD230
-- **NodeMCU v2 (ESP8266) + MCP2515 module** — use `nodemcuv2-mcp2515` env.
+- **NodeMCU v2/v3 (ESP8266) + MCP2515 module** — use `nodemcuv2-mcp2515` env.
   ESP8266 has no native CAN, so the MCP2515 SPI driver is the only option.
-  HSPI pins are fixed: SCK=D5, MISO=D6, MOSI=D7; CS is on D1 (GPIO5).
-  Button uses the onboard FLASH button (D3), and status is shown via the
-  onboard blue LED (D4) using blink-pattern encoding:
-  solid=Active · slow blink=Listen-Only · medium blink=OTA · fast blink=Error.
+  HSPI pins are fixed: SCK=D5, MISO=D6, MOSI=D7; CS is on D8 (GPIO15, native
+  HSPI SS).  Button uses the onboard FLASH button (D3), and status is shown
+  via the onboard blue LED (D4) using blink-pattern encoding: solid=Active ·
+  slow blink=Listen-Only · medium blink=OTA · fast blink=Error.  If your
+  MCP2515 module has a CS pull-up that prevents boot, move CS to D1 (GPIO5)
+  in `config.h`.
 
 ---
 
