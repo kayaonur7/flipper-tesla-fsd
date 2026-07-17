@@ -68,6 +68,26 @@ uygulama girişimi için doğru taraf oyun dışı, abonelik tabanlı uygulamala
 8. **Verimlilik / İş araçları (Business)** — 14 günlük ARPU 0,29 $; profesyonel kullanıcı ödemeye
    istekli. Finans ve seyahat de yükselen alt kategoriler.
 
+### Özel inceleme: İncil / İnanç (Faith Tech) Uygulamaları ⭐
+
+Sağlık & fitness ile ses/içerik aboneliğinin kesişiminde, hızla büyüyen ve ABD ağırlıklı bir niş:
+
+| Uygulama | Model | Rakamlar |
+|---|---|---|
+| **Hallow** (Katolik dua/meditasyon) | Yıllık abonelik, hard paywall | 2025'te ~**40 milyon $ net gelir**; 22M+ indirme; 84M$ yatırım; Lent (Büyük Perhiz) döneminde tek ayda ~10M$ |
+| **Bible Chat** (AI + Kutsal Kitap sohbeti) | Haftalık abonelik (~7$/hafta) | 30M+ indirme; indirmeler 2025'te 2 katına, 2024 başından beri ~10 katına çıktı; tek ayda 1,5M indirme, ~750K$/ay net gelir |
+| **Pray.com** (dua + sesli İncil içeriği) | Abonelik | 25M indirme, 34M$ yatırım |
+| **YouVersion Bible** | Tamamen ücretsiz (kâr amaçsız) | Dünyanın en çok indirilen İncil uygulaması — para kazanmıyor ama talebin ölçeğini kanıtlıyor |
+
+**Pazar verileri:**
+- Global "spiritual wellness" uygulama pazarı 2025'te ~2,5 milyar $; 2033-2035'e kadar 7–10 milyar $ öngörüsü (**%14–16 CAGR** — genel uygulama pazarından hızlı).
+- Kuzey Amerika pazarın ~%44'ünü oluşturuyor; ödeme istekliliği en yüksek bölge ABD.
+- ABD'de fiziksel İncil satışları bile %22 arttı — dijitale taşan gerçek bir talep dalgası var.
+- Kategorinin ilginç özellikleri: **tahmin edilebilir sezonluk zirveler** (Lent, Advent, Ramazan eşdeğerleri), çok yüksek duygusal bağlılık ve elde tutma, meditasyon uygulamalarının (Calm/Headspace) kaybettiği kullanıcıyı toplayan "amaçlı wellness" konumlandırması.
+- AI açısı: Bible Chat'in patlaması, "AI + inanç içeriği" bileşiminin (Kademe 2'deki AI trendiyle birleşince) yeni ve henüz doymamış bir alan olduğunu gösteriyor. Aynı model diğer dinlere/dillere de uygulanabilir durumda (ör. Müslüman pazarında Muslim Pro benzeri uygulamalar).
+
+**Risk notları:** İçerik güvenilirliği kritik (teolojik doğruluk beklentisi yüksek); büyük oyuncular sezonluk pazarlamaya ciddi bütçe harcıyor; YouVersion'ın ücretsizliği nedeniyle "düz İncil okuma" uygulaması para kazanamaz — kazanan modeller dua/meditasyon (Hallow), AI rehberlik (Bible Chat) ve sesli içerik (Pray.com) gibi katma değerli katmanlar.
+
 ### Kademe 3 — Doygun/riskli
 - **Meditasyon/wellness saf oyuncuları** daralıyor (Calm −24%, Headspace abone kaybı) —
   kategori sağlıklı ama farklılaşmamış "bir meditasyon uygulaması daha" artık büyümüyor.
@@ -97,6 +117,7 @@ Verilere göre, küçük/orta ölçekli bir ekip için en mantıklı 4 seçenek:
 | 2 | **Sağlık & fitness dikeyi** (ör. spesifik hedef: uyku, duruş, belirli spor dalı) | İndirme başına en yüksek gelir, en yüksek deneme dönüşümü (%35), yıllık abonelik sadakati | Yıllık abonelik ağırlıklı, deneme süreli |
 | 3 | **Kısa dizi / mikro-içerik platformu veya bu ekosisteme araç** | %278 indirme büyümesi, ABD gelirin merkezi; içerik üretimi yerine ekosistem aracı (ör. üreticiler için araçlar) daha düşük riskli | Coin/mikro-ödeme veya B2B abonelik |
 | 4 | **Eğitim mikro-nişi** (dil dışı: sınav hazırlık, meslek becerisi) | P90/medyan oranı 8x — doğru niş seçilirse asimetrik getiri | Freemium + streak/gamification, Duolingo modeli |
+| 5 | **İnanç/faith tech** (AI destekli dua-rehberlik, dini sesli içerik; İncil odaklı veya diğer dinlere uyarlama) | Hallow ~40M$/yıl, Bible Chat 10x indirme büyümesi; %14-16 CAGR ile genel pazardan hızlı büyüyen, ABD ağırlıklı niş; AI trendi ile birleşiyor | Haftalık/yıllık abonelik + hard paywall, sezonluk kampanyalar (Lent/Ramazan) |
 
 **Kaçınılması gerekenler:** genel amaçlı sosyal ağ, genel video streaming, jenerik meditasyon,
 Tinder klonu genel flört uygulaması — bunlar ya girilemez ölçekte ya da daralan pazarlar.
@@ -113,3 +134,8 @@ Tinder klonu genel flört uygulaması — bunlar ya girilemez ölçekte ya da da
 - [Sensor Tower — State of Short Drama Apps 2025](https://sensortower.com/blog/state-of-short-drama-apps-2025)
 - [Business of Apps — Dating App Report 2026](https://www.businessofapps.com/data/dating-app-report/)
 - [Business of Apps — Calm Statistics](https://www.businessofapps.com/data/calm-statistics/)
+- [Appfigures — Hallow: The Most Predictable Spike in the App Store](https://appfigures.com/resources/insights/hallow-lent-surge-prayer-app-revenue)
+- [Appfigures — How to Drive Demand for the Oldest Book in the World (Bible Chat)](https://appfigures.com/resources/insights/20250418?f=5)
+- [Fast Company — As Bible sales boom, so does Christian tech](https://www.fastcompany.com/91249914/as-bible-sales-boom-so-does-christian-tech)
+- [Grand View Research — Spiritual Wellness Apps Market](https://www.grandviewresearch.com/industry-analysis/spiritual-wellness-apps-market-report)
+- [Contrary Research — Hallow Business Breakdown](https://research.contrary.com/company/hallow)
