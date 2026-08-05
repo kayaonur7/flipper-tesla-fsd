@@ -103,6 +103,106 @@ ile "hiç aranmadı" arasındaki farkı bilmesi gerekiyor.
 **Ekran sayısı** satırını kontrol et: beklediğin sayı (entry için 14) gelmiyorsa
 yol yanlış.
 
+### Script çalıştırılamıyorsa
+
+Kurumsal politika `.ps1` **dosyalarının** çalıştırılmasını engelliyor olabilir.
+Bu kısıt terminale doğrudan yazılan komutları kapsamıyor. Üç alternatif —
+sondaki hiç terminal gerektirmiyor.
+
+#### Alternatif 1 — Git Bash
+
+Git for Windows kuruluysa Git Bash, PowerShell execution policy'sinden
+etkilenmiyor. VS Code'da terminal panelinde `+` yanındaki oka tıkla →
+**Git Bash** seç, sonra:
+
+```bash
+bash docs/harmoni-ekran-analizi/scripts/on-tarama.sh
+```
+
+#### Alternatif 2 — PowerShell'e komutları doğrudan yapıştır
+
+Script dosyası yerine komutları tek tek yapıştır. Önce değişkenler:
+
+```powershell
+$E = "cct\page\acq\entry"; $O = "docs\entry-akis\_tarama"
+New-Item -ItemType Directory -Force $O | Out-Null
+```
+
+Sonra altı komut (her biri tek satır, sırayla):
+
+```powershell
+Get-ChildItem $E -Recurse -File -Include *.java,*.html,*.js,*.json | ForEach-Object { "{0,8} {1}" -f (Get-Content $_.FullName | Measure-Object -Line).Lines, (Resolve-Path -Relative $_.FullName) } | Sort-Object | Set-Content "$O\01-dosyalar.txt"
+```
+```powershell
+Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'startNewProcess|showCustomMessageBox|fireEvent|CCT|openDialog|closeDialog' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\02-gecisler.txt"
+```
+```powershell
+Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf\s*\.|[A-Za-z]+Service\s*\.' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\03-servisler.txt"
+```
+```powershell
+Get-ChildItem (Split-Path $E) -Recurse -File -Include *.java,*.js | Where-Object { $_.FullName -notmatch '\\entry\\' } | Select-String 'entry' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\04-giris-noktalari.txt"
+```
+```powershell
+Get-ChildItem $E -Recurse -File | Select-String 'session|getAttribute|setAttribute|processContext|globalMap' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\05-state.txt"
+```
+```powershell
+Get-ChildItem $E -Directory | ForEach-Object { $n = ((Get-ChildItem $_.FullName -Recurse -File | ForEach-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum; "$n $($_.Name)" } | Sort-Object { [int]($_ -split ' ')[0] } -Descending | Set-Content "$O\06-ekran-boyutlari.txt"
+```
+
+Kontrol:
+
+```powershell
+Get-ChildItem $O | Select-Object Name, @{n='Satir';e={ @(Get-Content $_.FullName).Count }}
+```
+
+#### Alternatif 3 — VS Code arama arayüzü (terminal yok)
+
+Terminalin tamamı kapalıysa VS Code'un kendi aramasıyla aynı çıktıyı
+üretebilirsin:
+
+1. `Ctrl+Shift+F` ile aramayı aç
+2. Sağdaki **`.*`** düğmesine bas (regex modu)
+3. **files to include** kutusuna `cct/page/acq/entry` yaz
+4. Arama kutusuna deseni yaz
+5. Sonuç panelinin üstündeki **Open in Editor** bağlantısına tıkla
+6. Açılan sekmeyi `docs/entry-akis/_tarama/<ad>.txt` olarak kaydet
+
+Desenler:
+
+| Kaydedilecek dosya | Arama deseni | files to include |
+|---|---|---|
+| `02-gecisler.txt` | `startNewProcess\|showCustomMessageBox\|fireEvent\|CCT\|openDialog\|closeDialog` | `cct/page/acq/entry` |
+| `03-servisler.txt` | `HMN_[A-Za-z_]*Intf\|[A-Za-z]+Intf\s*\.\|[A-Za-z]+Service\s*\.` | `cct/page/acq/entry` |
+| `04-giris-noktalari.txt` | `entry` | `cct/page/acq` + **files to exclude**: `cct/page/acq/entry` |
+| `05-state.txt` | `session\|getAttribute\|setAttribute\|processContext\|globalMap` | `cct/page/acq/entry` |
+
+`01-dosyalar.txt` ve `06-ekran-boyutlari.txt` bu yolla üretilemiyor (satır
+sayımı gerekiyor). İkisini de atla ve B0a prompt'undaki girdi satırlarından
+çıkar; onun yerine B0a'ya şunu ekle:
+
+```
+Envanteri kendin çıkar: entry altındaki klasörleri listele, her klasörün
+dosyalarını göster. Satır sayısı yerine dosya boyutu kullan. Önce klasör
+sayısını yaz, sonra devam et.
+```
+
+Bu, B0a turunu biraz uzatıyor ama diğer beş tur ön-tarama çıktılarıyla
+çalışmaya devam ettiği için zaman aşımı riski düşük kalıyor.
+
+#### Alternatif 4 — Copilot agent mode'a çalıştırt
+
+Agent mode terminal komutu çalıştırabiliyor (her komut için onay ister).
+Yeni bir chat'te:
+
+```
+Aşağıdaki komutları sırayla terminalde çalıştır ve her birinin çıktı dosyası
+kaç satır oldu bana söyle. Komutları değiştirme, yorumlama, sadece çalıştır.
+
+<Alternatif 2'deki komutları buraya yapıştır>
+```
+
+Bu yol da execution policy'ye takılmıyor, çünkü script dosyası çalıştırılmıyor.
+
 ---
 
 ## Blok A — Framework + Akış Primer

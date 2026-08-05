@@ -166,6 +166,12 @@ Desenleri değiştirmen gerekirse script'in içinde numaralı bloklar halinde
 duruyor — `02-gecisler` bloğu navigasyon/dialog, `05-state` bloğu session
 kullanımı için.
 
+> **Script çalıştırma izni yoksa** (kurumsal execution policy): PROMPTS.md'deki
+> [Script çalıştırılamıyorsa](./PROMPTS.md#script-çalıştırılamıyorsa) bölümünde
+> dört alternatif var — Git Bash, komutları terminale doğrudan yapıştırma,
+> VS Code arama arayüzü (hiç terminal gerektirmez) ve Copilot agent mode'a
+> çalıştırtma.
+
 ---
 
 ## Adım 3 — Akış haritası (B0a → B0b → B0c)
@@ -314,7 +320,7 @@ Bulguları teker teker uygula — toplu istendiğinde model plandan sapıyor.
 |---|---|---|
 | **Tur uzun sürüp network / timeout hatası veriyor** | Tek turda çok fazla dosya okuma ve arama | Ön-tarama script'ini çalıştırdığından emin ol; Çalışma Disiplini bloğunu prompt'a ekle; turu daha küçük parçaya böl |
 | `grep: command not found` / `find` beklenmedik çalışıyor | PowerShell'de bash komutu | `on-tarama.ps1` kullan, veya terminali Git Bash'e çevir (VS Code: terminal panelinde `+` yanındaki ok → Git Bash) |
-| PowerShell "execution policy" hatası | Script çalıştırma kapalı | Komutu `-ExecutionPolicy Bypass` ile çağır (yukarıdaki satırda zaten var) |
+| PowerShell "execution policy" hatası, script çalıştırılamıyor | Kurumsal politika `.ps1` dosyalarını engelliyor | [Script çalıştırılamıyorsa](./PROMPTS.md#script-çalıştırılamıyorsa) — Git Bash, komutları doğrudan yapıştırma, veya VS Code arama arayüzü |
 | Tur yarıda kesildi, kısmi çıktı var | İstek zaman aşımı | Aynı prompt'u yeni chat'te tekrar gönder — Çalışma Disiplini bloğu "kaldığın yerden devam et" der |
 | "Continue to iterate?" çıkıyor | Agent mode tool-call limiti | Devam et; sık oluyorsa ön-tarama çıktılarının verildiğini kontrol et (model hâlâ kendi arama yapıyor olabilir) |
 | BE tarafı hiç analiz edilmemiş, "BE TARAFI ANALİZ EDİLMEDİ" notları var | İkinci repo workspace'te değil veya indekslenmemiş | Adım 0.1'i tekrarla, doğrulama komutunu çalıştır |
