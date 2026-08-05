@@ -128,31 +128,127 @@ $E = "cct\page\acq\entry"; $O = "docs\entry-akis\_tarama"
 New-Item -ItemType Directory -Force $O | Out-Null
 ```
 
-Sonra altı komut (her biri tek satır, sırayla):
+Sonra altı komut. **Her biri iki satır** — sonucu önce değişkene alıp sonra
+yazıyoruz, çünkü boş pipeline `Set-Content`'e ulaşmıyor ve dosya hiç
+oluşmuyor:
 
 ```powershell
-Get-ChildItem $E -Recurse -File -Include *.java,*.html,*.js,*.json | ForEach-Object { "{0,8} {1}" -f (Get-Content $_.FullName | Measure-Object -Line).Lines, (Resolve-Path -Relative $_.FullName) } | Sort-Object | Set-Content "$O\01-dosyalar.txt"
+$r = Get-ChildItem $E -Recurse -File -Include *.java,*.html,*.js,*.json | ForEach-Object { "{0,8} {1}" -f (Get-Content $_.FullName | Measure-Object -Line).Lines, (Resolve-Path -Relative $_.FullName) } | Sort-Object
+Set-Content "$O\01-dosyalar.txt" -Value (@($r) -join "`r`n")
 ```
 ```powershell
-Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'startNewProcess|showCustomMessageBox|fireEvent|CCT|openDialog|closeDialog' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\02-gecisler.txt"
+$r = Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'startNewProcess|showCustomMessageBox|fireEvent|CCT|openDialog|closeDialog' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\02-gecisler.txt" -Value (@($r) -join "`r`n")
 ```
 ```powershell
-Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf\s*\.|[A-Za-z]+Service\s*\.' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\03-servisler.txt"
+$r = Get-ChildItem $E -Recurse -File | Select-String -CaseSensitive 'HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf\s*\.|[A-Za-z]+Service\s*\.' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\03-servisler.txt" -Value (@($r) -join "`r`n")
 ```
 ```powershell
-Get-ChildItem (Split-Path $E) -Recurse -File -Include *.java,*.js | Where-Object { $_.FullName -notmatch '\\entry\\' } | Select-String 'entry' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\04-giris-noktalari.txt"
+$names = (Get-ChildItem $E -Directory).Name -join '|'
+$r = Get-ChildItem (Split-Path $E) -Recurse -File -Include *.java,*.js | Where-Object { $_.FullName -notmatch '\\entry\\' } | Select-String -Pattern $names | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\04-giris-noktalari.txt" -Value (@($r) -join "`r`n")
 ```
 ```powershell
-Get-ChildItem $E -Recurse -File | Select-String 'session|getAttribute|setAttribute|processContext|globalMap' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() } | Set-Content "$O\05-state.txt"
+$r = Get-ChildItem $E -Recurse -File | Select-String 'session|getAttribute|setAttribute|processContext|globalMap' | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\05-state.txt" -Value (@($r) -join "`r`n")
 ```
 ```powershell
-Get-ChildItem $E -Directory | ForEach-Object { $n = ((Get-ChildItem $_.FullName -Recurse -File | ForEach-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum; "$n $($_.Name)" } | Sort-Object { [int]($_ -split ' ')[0] } -Descending | Set-Content "$O\06-ekran-boyutlari.txt"
+$r = Get-ChildItem $E -Directory | ForEach-Object { $n = ((Get-ChildItem $_.FullName -Recurse -File | ForEach-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum; "$n $($_.Name)" } | Sort-Object { [int]($_ -split ' ')[0] } -Descending
+Set-Content "$O\06-ekran-boyutlari.txt" -Value (@($r) -join "`r`n")
 ```
 
 Kontrol:
 
 ```powershell
 Get-ChildItem $O | Select-Object Name, @{n='Satir';e={ @(Get-Content $_.FullName).Count }}
+```
+
+### Desen tutmadıysa: gerçek desenleri koddan çıkar
+
+Bir tarama boş dönerse (veya PowerShell'de dosya hiç oluşmazsa — boş pipeline
+`Set-Content`'e ulaşmaz) sebep neredeyse her zaman desenin bu kod tabanına
+uymamasıdır. Harmoni'nin kendi idiomları var; tahmin etmek yerine koddan çıkar.
+
+Önce değişkenler:
+
+```powershell
+$E = "cct\page\acq\entry"; $O = "docs\entry-akis\_tarama"
+```
+
+#### K1 — En sık çağrılan nesneler (servis deseni için)
+
+```powershell
+(Get-ChildItem $E -Recurse -File -Include *.java | Select-String -Pattern '([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*[a-z][A-Za-z0-9_]*\s*\(' -AllMatches).Matches | ForEach-Object { $_.Groups[1].Value } | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
+```
+
+Çıktıdaki servis benzeri isimler (`...Intf`, `...Service`, `...Manager`,
+`...Facade`, `...Delegate`, `...Client`, `...Proxy` veya kuruma özel bir sonek)
+`03-servisler` deseninin doğrusudur.
+
+#### K2 — import satırları (hangi modüller gerçekten kullanılıyor)
+
+```powershell
+Get-ChildItem $E -Recurse -File -Include *.java | Select-String '^\s*import\s+' | ForEach-Object { ($_.Line.Trim() -replace '^import\s+(static\s+)?','' -replace ';$','') } | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
+```
+
+`HMN_*_Intf` / `HMN_*_Model` paketleri buradan net görünür. Servis arayüzü
+sınıf adlarını da buradan al.
+
+#### K3 — get/set çağrıları (state deseni için)
+
+```powershell
+(Get-ChildItem $E -Recurse -File -Include *.java,*.js | Select-String -Pattern '\b(get|set|put|read|write)[A-Z][A-Za-z0-9_]*\s*\(' -AllMatches).Matches | ForEach-Object { ($_.Value -replace '\s*\($','') } | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
+```
+
+Harmoni state'i `session` üzerinden taşımıyor olabilir. Çıktıda `getPageData`,
+`getProcessData`, `getContext`, `getSharedModel` gibi bir şey görürsen
+`05-state` deseni odur.
+
+#### K4 — Navigasyon deseninin doğrulanması
+
+```powershell
+foreach ($k in 'startNewProcess','showCustomMessageBox','fireEvent','CCT','openDialog','closeDialog','navigate','goPage','openPage','callPage') { $n = @(Get-ChildItem $E -Recurse -File | Select-String -SimpleMatch $k).Count; "{0,-22} {1}" -f $k, $n }
+```
+
+Hangi anahtar kelimenin kaç kez geçtiğini gösterir. `02-gecisler` beklediğinden
+az satır döndüyse burada gerçek mekanizmayı görürsün.
+
+#### K5 — Ekran adlarının dışarıda geçtiği yerler (04 için doğrusu)
+
+Orijinal 04 komutu literal `entry` kelimesini arıyordu; navigasyon klasör adını
+değil **sayfa sınıfını** referansladığı için çoğu repoda boş döner. Doğrusu:
+
+```powershell
+$names = (Get-ChildItem $E -Directory).Name -join '|'
+$r = Get-ChildItem (Split-Path $E) -Recurse -File -Include *.java,*.js | Where-Object { $_.FullName -notmatch '\\entry\\' } | Select-String -Pattern $names | ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\04-giris-noktalari.txt" -Value (@($r) -join "`r`n")
+```
+
+### Boş dönse bile dosyayı oluşturan yazım
+
+PowerShell'de `... | Set-Content x.txt` boş pipeline'da dosya yaratmıyor.
+Sonuçları önce değişkene al, sonra yaz — böylece boş sonuç da dosya olarak
+kalır ve model "arandı, bulunamadı" ile "hiç aranmadı" arasındaki farkı görür:
+
+```powershell
+$r = <arama komutu>
+Set-Content "$O\03-servisler.txt" -Value (@($r) -join "`r`n")
+```
+
+### Yeni deseni bulduktan sonra
+
+Deseni `scripts/on-tarama.ps1` ve `scripts/on-tarama.sh` içinde de güncelle ki
+bir sonraki akışta (annulment, application, branchopening) tekrar uğraşma.
+
+Hâlâ boş dönen bir tarama varsa **onu boş bırak ve devam et**. B0b/B0c
+prompt'larına şu satırı ekle:
+
+```
+NOT: <dosya adı> taraması boş döndü. Bu mekanizmanın bu akışta kullanılmadığı
+anlamına gelebilir. İlgili bölümde "TARAMA BOŞ — mekanizma kullanılmıyor veya
+farklı adlandırılmış" yaz ve kalan girdilerle devam et. Bu boşluğu tahminle
+doldurma.
 ```
 
 #### Alternatif 3 — VS Code arama arayüzü (terminal yok)

@@ -40,8 +40,15 @@ grep -rnE "HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf[[:space:]]*\.|[A-Za-z]+Service[[:spa
   "$ENTRY" > "$OUT/03-servisler.txt" 2>/dev/null || true
 
 # 4. Akışa DIŞARIDAN yapılan çağrılar (giriş noktaları)
-grep -rn "entry" "$ACQ" --include=*.java --include=*.js 2>/dev/null \
-  | grep -v "/entry/" > "$OUT/04-giris-noktalari.txt" || true
+# Klasör adını değil EKRAN ADLARINI arıyoruz — navigasyon sayfa sınıfını
+# referanslıyor, klasörü değil.
+NAMES=$(find "$ENTRY" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | paste -sd'|' -)
+if [ -n "$NAMES" ]; then
+  grep -rnE "$NAMES" "$ACQ" --include=*.java --include=*.js 2>/dev/null \
+    | grep -v "/entry/" > "$OUT/04-giris-noktalari.txt" || true
+else
+  : > "$OUT/04-giris-noktalari.txt"
+fi
 
 # 5. Session / global state kullanımı
 grep -rniE "session|getAttribute|setAttribute|processContext|globalMap" \

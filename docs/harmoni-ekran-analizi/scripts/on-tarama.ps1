@@ -29,7 +29,7 @@ function Save-Matches {
     param([string[]]$Paths, [string]$Pattern, [string]$File, [switch]$CaseSensitive)
 
     $files = Get-ChildItem -Path $Paths -Recurse -File -ErrorAction SilentlyContinue
-    if (-not $files) { Set-Content -Path $File -Value @() -Encoding UTF8; return }
+    if (-not $files) { Set-Content -Path $File -Value "" -Encoding UTF8; return }
 
     $sel = if ($CaseSensitive) {
         $files | Select-String -Pattern $Pattern -CaseSensitive -ErrorAction SilentlyContinue
@@ -40,7 +40,9 @@ function Save-Matches {
     $lines = $sel | ForEach-Object {
         "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim()
     }
-    Set-Content -Path $File -Value $lines -Encoding UTF8
+    # Bos sonucta da dosyayi olustur: "arandi, bulunamadi" ile "hic aranmadi"
+    # ayrimini korumak icin.
+    Set-Content -Path $File -Value (@($lines) -join "`r`n") -Encoding UTF8
 }
 
 # 1. Dosya envanteri + satir sayilari
@@ -49,7 +51,7 @@ $inv = Get-ChildItem -Path $Entry -Recurse -File -Include *.java, *.html, *.js, 
         $n = (Get-Content -LiteralPath $_.FullName -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
         "{0,8} {1}" -f $n, (Resolve-Path -Relative $_.FullName)
     } | Sort-Object { ($_ -split '\s+', 3)[2] }
-Set-Content -Path "$Out/01-dosyalar.txt" -Value $inv -Encoding UTF8
+Set-Content -Path "$Out/01-dosyalar.txt" -Value (@($inv) -join "`r`n") -Encoding UTF8
 
 # 2. Navigasyon / dialog / event cagrilari
 Save-Matches -Paths $Entry -CaseSensitive `
@@ -62,11 +64,16 @@ Save-Matches -Paths $Entry -CaseSensitive `
     -File "$Out/03-servisler.txt"
 
 # 4. Akisa DISARIDAN yapilan cagrilar (giris noktalari)
-$outside = Get-ChildItem -Path $Acq -Recurse -File -Include *.java, *.js -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -notmatch '[\\/]entry[\\/]' } |
-    Select-String -Pattern 'entry' -ErrorAction SilentlyContinue |
-    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
-Set-Content -Path "$Out/04-giris-noktalari.txt" -Value $outside -Encoding UTF8
+# Klasor adini degil EKRAN ADLARINI ariyoruz - navigasyon sayfa sinifini
+# referansliyor, klasoru degil.
+$names = (Get-ChildItem -Path $Entry -Directory).Name -join '|'
+if ($names) {
+    $outside = Get-ChildItem -Path $Acq -Recurse -File -Include *.java, *.js -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]entry[\\/]' } |
+        Select-String -Pattern $names -ErrorAction SilentlyContinue |
+        ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+} else { $outside = @() }
+Set-Content -Path "$Out/04-giris-noktalari.txt" -Value (@($outside) -join "`r`n") -Encoding UTF8
 
 # 5. Session / global state kullanimi
 Save-Matches -Paths $Entry `
@@ -80,7 +87,7 @@ $sizes = Get-ChildItem -Path $Entry -Directory | ForEach-Object {
         Measure-Object -Sum).Sum
     [PSCustomObject]@{ Lines = [int]$total; Name = $_.Name }
 } | Sort-Object Lines -Descending | ForEach-Object { "{0} {1}" -f $_.Lines, $_.Name }
-Set-Content -Path "$Out/06-ekran-boyutlari.txt" -Value $sizes -Encoding UTF8
+Set-Content -Path "$Out/06-ekran-boyutlari.txt" -Value (@($sizes) -join "`r`n") -Encoding UTF8
 
 # Ozet
 Write-Host "Sonuc:"
