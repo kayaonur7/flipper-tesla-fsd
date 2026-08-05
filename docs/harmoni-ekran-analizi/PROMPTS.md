@@ -1,23 +1,33 @@
-# Harmoni Legacy Ekran Analizi — Prompt Seti
+# Harmoni Legacy Akış Analizi — Prompt Seti
 
-Harmoni (kuruma özel, kapalı kaynak) legacy ekranlarının uçtan uca analizi ve
+Harmoni (kuruma özel, kapalı kaynak) legacy akışlarının uçtan uca analizi ve
 iyileştirme planı için hazırlanmış prompt seti. GitHub Copilot **agent mode** +
 **Opus** ile kullanılmak üzere yazıldı.
 
-Çalıştırma adımları için: [README.md](./README.md)
+Hedef: `cct/page/acq/entry` — 14 alt ekrandan oluşan üye işyeri başvuru akışı.
+Set, tek ekranlık analiz için de kullanılabilir (bkz. [Tek ekran modu](#tek-ekran-modu)).
 
-| Blok | Amaç | Ne zaman |
+Çalıştırma adımları: [README.md](./README.md)
+
+| Blok | Amaç | Kaç kez |
 |---|---|---|
-| [A](#blok-a--framework-primer) | Framework primer | Her prompt'un başına yapıştırılır |
-| [B](#blok-b--aşama-1-uçtan-uca-analiz) | Uçtan uca analiz | İlk çalıştırma |
-| [C](#blok-c--doğrulama-pası) | Doğrulama pası | Analizden hemen sonra |
-| [D](#blok-d--aşama-2-iyileştirme-planı) | İyileştirme planı | Analiz doğrulandıktan sonra |
+| [A](#blok-a--framework--akış-primer) | Framework + akış primer | Her prompt'un başına yapıştırılır |
+| [B0](#blok-b0--akış-envanteri-ve-haritası) | Akış haritası, ekran envanteri, önceliklendirme | 1 |
+| [B1](#blok-b1--ekran-kartı) | Tek ekran/grup derin analizi | Grup sayısı kadar (~6-7) |
+| [B2](#blok-b2--konsolidasyon) | Ekranlar arası birleşik görünüm | 1 |
+| [C](#blok-c--doğrulama-pası) | Doğrulama | B0 ve B2'den sonra |
+| [D](#blok-d--iyileştirme-planı) | İyileştirme planı | 1 |
+
+**Neden bu sırayla:** B0 olmadan hangi ekranın çekirdek hangisinin yardımcı
+olduğu bilinmiyor ve 14 ekrana eşit efor harcanıyor. B2 olmadan akışın asıl
+problemleri — adımlar arası tutarsızlıklar — hiç görünmüyor, çünkü hiçbiri tek
+ekranın içinde durmuyor.
 
 ---
 
-## Blok A — Framework Primer
+## Blok A — Framework + Akış Primer
 
-> Bu blok tek başına çalıştırılmaz. B, C ve D bloklarının **her birinin başına**
+> Tek başına çalıştırılmaz. B0, B1, B2, C ve D bloklarının **her birinin başına**
 > aynen yapıştırılır. Amacı, modelin bilmediği bir framework'ü tanıdığı bir
 > framework'e benzeterek uydurmasını engellemek.
 
@@ -30,7 +40,7 @@ oradan türet ve çıktında "TÜRETİLEN KONVANSİYON (kaynak: <dosya>)" diye i
 Türetemiyorsan "BİLİNMİYOR" yaz — tahmin etme.
 
 ## Ekran anatomisi
-Bir ekran şu dosya grubundan oluşur:
+Her PG_* klasörü bir alt ekrandır ve şu dosya grubunu içerir:
   PG_<Ekran>.java               → sayfa controller
   <ekran>.html                  → widget template
   <ekran>.js                    → sayfa script'i
@@ -53,155 +63,344 @@ Navigasyon : startNewProcess / CCT / dialog
 Dialog     : showCustomMessageBox (bloklayıcı)
 Rapor      : HopeReportGenerator — server-side Excel, reportId ile
 
+## ANALİZ KAPSAMI — cct/page/acq/entry
+Bu bir TEK EKRAN DEĞİL. 14 alt ekrandan oluşan bir üye işyeri başvuru (entry)
+akışıdır. Her alt ekran kendi klasöründe, kendi dosya dörtlüsüyle durur.
+
+Alt ekranlar:
+  PG_AccountWalletPopup             PG_LoyaltyProgramRatePopup
+  PG_AdditionalInformation          PG_MerchantPoint
+  PG_AddNote                        PG_MerchantSecurityCheck
+  PG_ApplicationAccount             PG_TagInquiry
+  PG_ApplicationAccountEdit         PG_TagOperation
+  PG_ApplicationEntryPersonalInfo   PG_TerminalInfo
+  PG_ApplicationPricing
+  PG_ApplicationPricingTrio
+
+Kardeş akışlar — KAPSAM DIŞI, ama paylaşılan servis/DTO/utility olabilir:
+  cct/page/acq/annulment
+  cct/page/acq/application
+  cct/page/acq/branchopening
+  cct/page/acq/inquiry
+
+## Bu akışta özellikle dikkat
+- Ekranlar arası taşınan state (akış bağlamı) analizin merkezidir; tek bir
+  ekranın içine bakarak görülemez.
+- *Popup sonekli ekranlar modal'dır: farklı yaşam döngüsü, parent'a dönüş
+  değeri ile veri verirler. Adım sayfalarından ayrı kategoridir.
+- İsim benzeri ikizler kopya mantık adayıdır ve özel olarak karşılaştırılmalıdır:
+  ApplicationAccount / ApplicationAccountEdit
+  ApplicationPricing / ApplicationPricingTrio
+  TagInquiry / TagOperation
+
 ## Domain
 ACQ = Acquiring / Merchant (üye işyeri) — kartlı ödeme kabul tarafı.
+entry = üye işyeri başvuru giriş akışı.
 ```
 
 ---
 
-## Blok B — Aşama 1: Uçtan Uca Analiz
+## Blok B0 — Akış Envanteri ve Haritası
 
-> Başına Blok A'yı yapıştır. `<...>` alanlarını doldur.
+> İlk çalıştırılan blok. Tek ekranın içine girmez; akışın iskeletini çıkarır ve
+> sonraki adımların önceliğini belirler.
 
 ```
 [BLOK A BURAYA]
 
 # ROL
-Kıdemli yazılım mimarısın. Kod yazmayacaksın; bir ekranı uçtan uca tersine
-mühendislikle belgeleyeceksin.
+Kıdemli yazılım mimarısın. Kod yazmayacaksın.
 
-# HEDEF EKRAN
-Ekran      : <EKRAN ADI>
-Controller : #file:PG_<...>.java
-Template   : #file:<...>.html
-Script     : #file:<...>.js
-İş tanımı  : <kullanıcı bu ekranda ne yapıyor — 1-2 cümle>
-Bildiğim ilişkili servisler/DTO'lar : <varsa yaz, yoksa "yok">
-Bu liste EKSİK — buradan başlayıp genişlet.
+# GÖREV
+cct/page/acq/entry akışının HARİTASINI çıkar. Bu turda hiçbir ekranın iç
+mantığına derinlemesine girme — akışın iskeletini, ekranlar arası ilişkileri
+ve paylaşılan state'i belgele.
 
-# YÖNTEM (sırayla uygula, adım atlama)
-1. DOSYA GRUBU: Dörtlüyü tamamla (PG_ / html / js / lang). Adlandırma birebir
-   uymuyorsa yakın eşleşmeleri listele; hangisinin doğru olduğunu html ve js
-   içindeki referanslarla doğrula.
+# YÖNTEM (sırayla, atlama)
+1. ENVANTER: entry altındaki her PG_* klasörünü aç. Her biri için dosya
+   dörtlüsünü (java / html / js / lang) ve her dosyanın SATIR SAYISINI çıkar.
+   Eksik dosyası olan ekranları işaretle.
 
-2. YAŞAM DÖNGÜSÜ: PG_ sınıfında hangi metotlar framework tarafından çağrılıyor
-   (init / load / prepare vb.), hangileri event handler? Komşu PG_ sınıflarıyla
-   karşılaştırarak türet ve kaynağını belirt.
+2. SINIFLANDIRMA: Her ekranı şu tiplerden birine ata ve gerekçesini yaz:
+   adım sayfası / modal popup / yardımcı görünüm / arama-sorgu ekranı
+   Kanıt: nasıl açıldığı (startNewProcess mi, dialog mu, CCT mi).
 
-3. EVENT ZİNCİRİ — en kritik adım:
-   - .js ve .java içindeki TÜM fireEvent çağrılarını bul, event adlarını çıkar
-   - Her event adını STRING olarak her iki repoda ara: kim tetikliyor, kim dinliyor
-   - Dinleyicisi bulunamayanı "DİNLEYİCİSİ BULUNAMADI" diye işaretle
-   - Tetikleyicisi bulunamayan handler'ı "ÖLÜ HANDLER ŞÜPHESİ" diye işaretle
+3. GEÇİŞ GRAFİĞİ: Tüm entry altında şu string'leri ara ve her eşleşmeyi incele:
+   startNewProcess, CCT, dialog, showCustomMessageBox, fireEvent
+   Kim kimi açıyor, hangi koşulla, hangi parametreyi taşıyarak?
+   Geri dönüş (parent'a dönüş) nasıl oluyor?
 
-4. SERVİS ÇAĞRILARI: FE'den çağrılan her HMN_*_Intf metodunu listele. Her biri
-   için BE'deki HMN_ACQ_Merchant_Internal implementasyonunu bul.
-   BE'ye erişemiyorsan arayüz imzası + Model DTO'sunu çıkar ve
-   "BE TARAFI ANALİZ EDİLMEDİ" notu düş — implementasyonu TAHMİN ETME.
+4. GİRİŞ VE ÇIKIŞ NOKTALARI: Bu akışa dışarıdan nereden giriliyor? Kardeş
+   klasörlerde (annulment / application / branchopening / inquiry) entry
+   ekranlarına yapılan çağrıları ara. Akış tamamlanınca nereye gidiliyor?
 
-5. DTO AKIŞI: HMN_ACQ_Merchant_Model içinde bu ekranın kullandığı sınıflar.
-   Alan bazlı Jackson anotasyonlarını (@JsonProperty, @JsonIgnore, @JsonFormat,
-   @JsonInclude) not et — serialization davranışı orada belirleniyor.
+5. PAYLAŞILAN STATE — bu turun en kritik adımı:
+   Adımlar arası taşınan her veri parçası için: nerede saklanıyor (session /
+   process context / CCT parametresi / gizli form alanı / servis üzerinden
+   yeniden okuma), hangi ekranda YAZILIYOR, hangi ekranda OKUNUYOR.
 
-6. i18n: Ekranda kullanılan tüm lang key'lerini çıkar. Dört listeyi ayrı ver:
-   (a) tr'de olup en'de olmayan
-   (b) en'de olup tr'de olmayan
-   (c) tanımlı ama hiç kullanılmayan
-   (d) kodda hardcoded, lang dosyasına hiç girmemiş metin
+6. SERVİS KESİŞİMİ: Tüm entry altındaki HMN_*_Intf çağrılarını topla.
+   Hangi arayüz metodu kaç farklı ekrandan çağrılıyor?
 
-7. NAVİGASYON: startNewProcess / CCT / dialog çağrıları — bu ekran nereye
-   gidiyor, buraya nereden geliniyor.
+7. İKİZ / VARYANT TARAMASI: Primer'da işaretlenen ikizleri (Account/AccountEdit,
+   Pricing/PricingTrio, TagInquiry/TagOperation) ve tespit ettiğin diğer
+   benzerleri karşılaştır. Dosya boyutları, ortak metot adları, ortak DTO'lar.
+   Bu turda yüzeysel bak — "kopya şüphesi VAR / YOK / İNCELENMELİ" düzeyinde.
 
-8. RAPOR: HopeReportGenerator kullanımı varsa reportId'yi, sunucu tarafındaki
-   şablonu ve rapora giren alanları çıkar.
-
-9. Her iddia için dosya:satır referansı ver. Kodda göremediğini YAZMA;
-   "DOĞRULANAMADI: <neden>" kullan.
+8. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>" kullan.
 
 # ÇIKTI FORMATI
 
-## 1. Ekran Künyesi
-Giriş noktaları, yetki/rol koşulları, üst akıştaki yeri, ön koşullar
+## 1. Ekran Envanteri
+Tablo: Ekran | Tip | java satır | html satır | js satır | lang key sayısı |
+Eksik dosya | Bir cümlelik rol
 
-## 2. Dosya Grubu ve Sorumluluklar
-Tablo: Dosya | Rol | Sorumluluk | Neyi çağırıyor
+## 2. Geçiş Grafiği
+Mermaid flowchart — düğümler ekranlar, oklar geçişler. Ok etiketi = tetikleyici
+(buton/event) + taşınan parametre. Modal'ları farklı şekille göster.
+Altına tablo: Kaynak | Hedef | Mekanizma (startNewProcess/CCT/dialog) |
+Koşul | Taşınan parametre | Dönüş değeri | Kod referansı
 
-## 3. Sayfa Yaşam Döngüsü
-PG_ sınıfının framework tarafından çağrılan metotları, çağrılma sırası,
-her adımda ne olduğu
+## 3. Giriş ve Çıkış Noktaları
+Akışa nereden giriliyor (kardeş akışlar dahil), hangi ön koşullarla,
+tamamlanınca / iptal edilince nereye gidiliyor
 
-## 4. Event Haritası
-Tablo: Event adı | Tetikleyen (dosya:satır) | Dinleyen (dosya:satır) |
-Taşıdığı veri | Durum (eşleşti / dinleyicisi yok / tetikleyicisi yok)
-
-## 5. Uçtan Uca Akışlar
-Her senaryo ayrı bölüm — mutlu yol, alternatif yollar ve hata yolları ayrı ayrı.
-Her akış için:
-- Tetikleyici (kullanıcı aksiyonu / lifecycle / event)
-- Adım adım çağrı zinciri (dosya:satır referanslı)
-- Mermaid sequence diagram
-- Yan etkiler: dialog, navigasyon, log, rapor, state değişimi
-
-## 6. Servis / Entegrasyon Envanteri
-Tablo: Intf metodu | Impl sınıfı | Girdi DTO | Çıktı DTO | Tetikleyen akış |
-Hata davranışı | Timeout/retry var mı | Kod referansı
-Ayrıca: DB, dış sistem, dosya/FTP, batch job, rapor motoru temasları
-
-## 7. Veri Sözleşmesi
-Her DTO için alan tablosu: Alan | Tip | Zorunlu mu | Jackson anotasyonu |
-Null davranışı | Enum değerleri | UI'daki karşılığı (html alan adı)
-
-## 8. Validasyon Matrisi
-Tablo: Alan | Kural | Nerede uygulanıyor (js / PG_ controller / Intf /
-Internal / DB) | Hata mesajı | Lang key'i var mı | Kod referansı
+## 4. Paylaşılan State Sözlüğü
+Tablo: Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) |
+Tip | Akış sonunda ne oluyor
 Ayrıca açıkça listele:
-- Sadece .js'te olan, sunucuda karşılığı olmayan kurallar
-- Sadece BE'de olup UI'da karşılığı olmayan (kullanıcıya kör gelen) hatalar
-- Aynı kuralın FE ile BE arasında ÇELİŞEN versiyonları
+- Yazılıp hiç okunmayan veriler
+- Okunup hiç yazılmayan (dışarıdan gelmesi beklenen) veriler
 
-## 9. Dialog ve Kullanıcı Geri Bildirimi
-showCustomMessageBox ve diğer dialog çağrıları: nerede, bloklayıcı mı,
-mesaj lokalize mi, kullanıcı iptal ederse ne oluyor
+## 5. Servis Paylaşım Matrisi
+Tablo: Intf metodu | Çağıran ekranlar | Çağrı sayısı | Aynı parametrelerle mi
 
-## 10. i18n Durumu
-Yöntem adım 6'daki dört listenin çıktısı
+## 6. İkiz / Varyant Adayları
+Tablo: Ekran A | Ekran B | Benzerlik kanıtı | Kopya şüphesi (VAR/YOK/İNCELENMELİ)
 
-## 11. Gizli Bağımlılıklar
-- Bu ekranın yazdığı veriyi okuyan başka ekran / job / rapor
-- Session veya global state, static/singleton kullanımı
-- Paylaşılan utility'ler — değişirse başka nerelerin kırılacağı
-- Zamanlanmış işler ile örtük sözleşmeler
+## 7. DERİN ANALİZ PLANI
+Ekranları önem sırasına diz ve gruplandır. Her grup için:
+- Grup adı ve içindeki ekranlar
+- Neden birlikte analiz edilmeli (ortak state / ikiz / ardışık adım)
+- Derinlik: TAM (çekirdek adım) veya ÖZET (yardımcı/popup)
+Amaç: 14 ekranı 6-8 gruba indirmek. Bu plan Blok B1 çalıştırmalarının
+girdisi olacak.
 
-## 12. Ölü ve Şüpheli Kod
-Ulaşılamaz bloklar, dinleyicisi olmayan event'ler, kullanılmayan parametreler,
-varyant/kopya dosyalar. Her biri için "neden ölü olduğunu düşünüyorum" kanıtı.
-
-## 13. Açık Sorular
-Kodda cevabı olmayan, iş birimine veya ekibe sorulması gerekenler
+## 8. Açık Sorular
+Haritadan çözülemeyen, koda derin bakmadan cevaplanamayacak sorular
 
 # KURALLAR
 - Türkçe yaz, teknik terimleri İngilizce bırak.
 - Her iddianın yanında dosya:satır referansı olsun.
-- Kod bloğu yapıştırma; sadece kritik 5-10 satırı alıntıla, gerisine referans ver.
-- Bu aşamada İYİLEŞTİRME ÖNERİSİ YAZMA. Sadece mevcut durumu belgele.
-- Çıktıyı docs/<ekran-adi>-analiz.md dosyasına yaz.
+- Bu turda ekranların İÇ mantığına girme (validasyon detayı, DTO alan listesi
+  vb. YOK). Sadece iskelet ve ilişkiler.
+- İYİLEŞTİRME ÖNERİSİ YAZMA.
+- Çıktıyı docs/entry-akis/00-akis-haritasi.md dosyasına yaz.
+```
+
+---
+
+## Blok B1 — Ekran Kartı
+
+> B0'ın ürettiği **Derin Analiz Planı**'ndaki her grup için bir kez çalıştırılır
+> (~6-8 çalıştırma). Her seferinde yeni chat aç.
+
+```
+[BLOK A BURAYA]
+
+# BAĞLAM
+#file:docs/entry-akis/00-akis-haritasi.md
+Akış haritası doğrulandı. Bu turda haritadaki tek bir gruba derinlemesine
+bakacaksın.
+
+# BU TURUN KAPSAMI
+Grup      : <B0'daki grup adı>
+Ekranlar  : <PG_X, PG_Y>
+Derinlik  : <TAM | ÖZET>
+Dosyalar  : #file:... (her ekranın java / html / js dosyalarını tek tek ver)
+
+# YÖNTEM
+1. YAŞAM DÖNGÜSÜ: PG_ sınıfında hangi metotlar framework tarafından çağrılıyor
+   (init / load / prepare vb.), hangileri event handler? Komşu PG_ sınıflarıyla
+   karşılaştırarak türet, kaynağını belirt.
+
+2. EVENT ZİNCİRİ: .js ve .java içindeki TÜM fireEvent çağrılarını bul. Her event
+   adını STRING olarak her iki repoda ara: kim tetikliyor, kim dinliyor.
+   Dinleyicisi yoksa "DİNLEYİCİSİ BULUNAMADI", tetikleyicisi yoksa
+   "ÖLÜ HANDLER ŞÜPHESİ" diye işaretle.
+
+3. SERVİS ÇAĞRILARI: Çağrılan her HMN_*_Intf metodu için BE'deki
+   HMN_ACQ_Merchant_Internal implementasyonunu bul. BE'ye erişemiyorsan
+   arayüz imzası + Model DTO'sunu çıkar, "BE TARAFI ANALİZ EDİLMEDİ" notu düş —
+   implementasyonu TAHMİN ETME.
+
+4. DTO: HMN_ACQ_Merchant_Model içinde kullanılan sınıflar; alan bazlı Jackson
+   anotasyonları (@JsonProperty, @JsonIgnore, @JsonFormat, @JsonInclude).
+
+5. VALİDASYON: Her kuralın NEREDE uygulandığını tespit et (js / PG_ controller /
+   Intf / Internal / DB).
+
+6. i18n: Kullanılan lang key'leri; tr-en eksikleri; kullanılmayan key'ler;
+   hardcoded metinler.
+
+7. AKIŞ SÖZLEŞMESİ: Bu ekran akış state'inden NEYİ OKUYOR (ön koşul), akışa
+   NEYİ YAZIYOR (son koşul)? Beklediği veri gelmezse ne oluyor?
+
+8. Gruptaki ekranlar ikizse: aynı işi yapan kod parçalarını YAN YANA karşılaştır,
+   davranış farklarını tek tek listele.
+
+9. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>".
+
+# ÇIKTI FORMATI — her ekran için ayrı kart
+
+## <PG_EkranAdı>
+### Künye
+Tip, akıştaki yeri, nereden açılıyor, yetki/rol koşulu
+
+### Akış Sözleşmesi
+| Yön | Veri | Kaynak/Hedef | Zorunlu mu | Yoksa ne oluyor |
+(Yön = OKUR / YAZAR)
+
+### Yaşam Döngüsü
+Framework tarafından çağrılan metotlar, sırası, her adımda ne olduğu
+
+### Event Haritası
+Event | Tetikleyen (dosya:satır) | Dinleyen (dosya:satır) | Taşıdığı veri | Durum
+
+### İç Akışlar
+Mutlu yol + alternatifler + hata yolları. Her biri için tetikleyici, adım adım
+zincir (dosya:satır), Mermaid sequence diagram, yan etkiler
+
+### Servis Çağrıları
+Intf metodu | Impl | Girdi DTO | Çıktı DTO | Hata davranışı | Timeout/retry |
+Kod referansı
+
+### Veri Sözleşmesi
+DTO alan tablosu: Alan | Tip | Zorunlu | Jackson anotasyonu | Null davranışı |
+Enum değerleri | UI karşılığı
+
+### Validasyon
+Alan | Kural | Nerede | Hata mesajı | Lang key var mı | Kod referansı
+Ayrıca: sadece js'te olanlar; sadece BE'de olup UI'a yansımayanlar
+
+### Dialog ve Geri Bildirim
+showCustomMessageBox ve diğer dialog çağrıları: nerede, bloklayıcı mı,
+lokalize mi, iptal edilirse ne oluyor
+
+### i18n
+Dört liste: tr'de var en'de yok / en'de var tr'de yok / kullanılmayan / hardcoded
+
+### Ölü ve Şüpheli Kod
+Kanıtıyla birlikte
+
+### Açık Sorular
+
+## Grup İçi Karşılaştırma
+(Sadece ikiz gruplarda) Tablo: Konu | Ekran A davranışı | Ekran B davranışı |
+Fark kasıtlı mı görünüyor | Kod referansları
+
+# KURALLAR
+- Derinlik ÖZET ise: Akış Sözleşmesi, Servis Çağrıları, Validasyon ve Dialog
+  bölümlerini doldur; diğerlerini tek paragrafla geç.
+- Her iddianın yanında dosya:satır referansı.
+- Kod bloğu yapıştırma; sadece kritik 5-10 satırı alıntıla.
+- İYİLEŞTİRME ÖNERİSİ YAZMA.
+- Çıktıyı docs/entry-akis/ekranlar/<grup-adi>.md dosyasına yaz.
+```
+
+---
+
+## Blok B2 — Konsolidasyon
+
+> Tüm kartlar bittikten sonra bir kez. Akışın asıl problemleri burada ortaya
+> çıkıyor — hiçbiri tek ekranın içinde durmuyor.
+
+```
+[BLOK A BURAYA]
+
+# BAĞLAM
+#file:docs/entry-akis/00-akis-haritasi.md
+#file:docs/entry-akis/ekranlar/<grup-1>.md
+#file:docs/entry-akis/ekranlar/<grup-2>.md
+... (tüm kartları ekle)
+
+# GÖREV
+Ekran kartlarını birleştirip AKIŞ SEVİYESİNDE görünüm üret. Tek ekranın içinde
+görünmeyen, ancak ekranlar yan yana konunca ortaya çıkan şeyleri ara.
+Şüphelendiğin her noktayı kodda doğrula.
+
+# ÇIKTI FORMATI
+
+## 1. Uçtan Uca Senaryolar
+Her biri için Mermaid sequence diagram + adım adım anlatım:
+- Mutlu yol: başvuru baştan sona
+- Geri dönüş: kullanıcı önceki adıma dönerse state'e ne oluyor
+- İptal: yarıda bırakılırsa ne kaydedilmiş kalıyor
+- Oturum kopması / timeout
+- Her adımdaki başlıca hata yolları
+
+## 2. Akış State Bütünlüğü
+- Yazılıp hiç okunmayan veriler
+- Okunduğu halde her yoldan yazılmayan veriler (bazı yollarda boş gelir)
+- Aynı verinin farklı ekranlarda farklı isim/tiple taşındığı yerler
+- Geri dönüşte temizlenmeyen artık state
+
+## 3. Validasyon Tutarlılık Matrisi
+Tablo: Alan | Ekran | Kural | Nerede uygulanıyor
+Aynı alanı birden fazla ekran doğruluyorsa satırları yan yana koy ve
+ÇELİŞKİLERİ işaretle. Ayrıca akış genelinde:
+- Hiçbir yerde sunucu tarafı karşılığı olmayan kurallar
+- Bir ekranda zorunlu, diğerinde opsiyonel olan alanlar
+
+## 4. Birleşik Veri Sözleşmesi
+Akışın tamamında kullanılan DTO'lar; hangi ekranda hangi alt kümesi kullanılıyor;
+aynı kavramı temsil eden farklı DTO'lar
+
+## 5. Servis Çağrı Envanteri
+Birleşik tablo + tespit: aynı veriyi tekrar tekrar çeken çağrılar,
+gereksiz tekrar eden sorgular
+
+## 6. Event Bütünlüğü
+Akış genelinde dinleyicisi olmayan event'ler, birden çok dinleyicisi olup
+sıra bağımlılığı taşıyanlar
+
+## 7. Tekrarlanan Mantık Haritası
+İkiz ekranlar ve diğer kopya kod bulguları: Ne tekrarlanıyor | Nerelerde |
+Versiyonlar birbiriyle tutarlı mı | Hangisi doğru davranış
+
+## 8. i18n Bütünlüğü
+Akış genelinde eksik/hardcoded/ölü key'lerin birleşik listesi
+
+## 9. Kapsam Dışına Bağımlılıklar
+Kardeş akışlarla (annulment / application / branchopening / inquiry) paylaşılan
+servis, DTO, utility, state. Bu akışta değişiklik yapılırsa nereleri etkiler.
+
+## 10. Açık Sorular
+Tüm kartlardan gelen açık soruların birleşik ve tekilleştirilmiş listesi
+
+# KURALLAR
+- Kartlarda yazana körü körüne güvenme; çelişki gördüğün her yeri kodda doğrula.
+- Kartlarda zaten yazılmış olanı tekrar etme; sadece BİRLEŞTİRİNCE ortaya
+  çıkanı yaz.
+- İYİLEŞTİRME ÖNERİSİ YAZMA.
+- Çıktıyı docs/entry-akis/90-konsolidasyon.md dosyasına yaz.
 ```
 
 ---
 
 ## Blok C — Doğrulama Pası
 
-> Aşama 1 biter bitmez, **yeni bir chat'te** çalıştır. Aynı sohbette çalıştırırsan
-> model kendi çıktısını savunma eğilimine giriyor.
+> İki kez çalıştırılır: B0'dan sonra (harita için) ve B2'den sonra
+> (konsolidasyon için). **Her zaman yeni chat'te** — aynı sohbette model kendi
+> çıktısını savunma eğilimine giriyor.
 
 ```
 [BLOK A BURAYA]
 
 # GÖREV
-#file:docs/<ekran-adi>-analiz.md dosyası bir önceki turda üretildi.
-Bu dosyayı ÜRETEN sen değilsin — eleştirel bir denetçisin.
-
-Dokümandaki her dosya:satır referansını tek tek koda karşı doğrula.
+#file:<doğrulanacak dosya>
+Bu dosya bir önceki turda üretildi. Onu ÜRETEN sen değilsin — eleştirel bir
+denetçisin. Her dosya:satır referansını tek tek koda karşı doğrula.
 
 # ÇIKTI
 ## Yanlış Referanslar
@@ -211,139 +410,159 @@ Tablo: İddia | Verilen referans | Kodda gerçekte ne var | Durum
 Kodda hiç karşılığı olmayan, tamamen üretilmiş iddialar
 
 ## Eksikler
-Kodda var olup dokümanda hiç geçmeyen: event, servis çağrısı, validasyon,
-dialog, hata yolu
+Kodda var olup dokümanda hiç geçmeyen: ekran, geçiş, event, servis çağrısı,
+validasyon, dialog, hata yolu
 
 ## Şüpheli Genellemeler
-"Muhtemelen", "genellikle", "standart olarak" gibi ifadelerle geçiştirilmiş,
-kanıtsız yerler
+"Muhtemelen", "genellikle", "standart olarak" ile geçiştirilmiş kanıtsız yerler
 
 # KURALLAR
-- Doğru olan maddeleri tek tek onaylama, sadece PROBLEMLİ olanları listele.
+- Doğru maddeleri tek tek onaylama, sadece PROBLEMLİ olanları listele.
 - Hiç problem bulamazsan bunu açıkça söyle; uydurma bulgu üretme.
-- Düzeltmeleri doğrudan analiz dosyasına uygula ve neyi değiştirdiğini özetle.
+- Düzeltmeleri doğrudan dosyaya uygula ve neyi değiştirdiğini özetle.
 ```
 
 ---
 
-## Blok D — Aşama 2: İyileştirme Planı
+## Blok D — İyileştirme Planı
 
-> Analiz doğrulanıp elle gözden geçirildikten sonra çalıştırılır.
+> Harita + kartlar + konsolidasyon doğrulanıp elle gözden geçirildikten sonra.
 
 ```
 [BLOK A BURAYA]
 
 # BAĞLAM
-#file:docs/<ekran-adi>-analiz.md
-Bu doküman gerçek koddan çıkarıldı, doğrulama pasından geçti ve tarafımdan
-onaylandı. Başlangıç noktası olarak al — ama iddia ettiğin her problemi
-kodda TEKRAR doğrula.
+#file:docs/entry-akis/00-akis-haritasi.md
+#file:docs/entry-akis/90-konsolidasyon.md
+(gerekirse ilgili ekran kartları)
+Bu dokümanlar gerçek koddan çıkarıldı, doğrulama pasından geçti ve tarafımdan
+onaylandı. Başlangıç noktası al — ama iddia ettiğin her problemi kodda TEKRAR
+doğrula.
 
 # GÖREV
-Bu ekran için iyileştirme alanlarını çıkar. Kod yazma, plan üret.
+entry akışı için iyileştirme alanlarını çıkar. Kod yazma, plan üret.
 
-# İNCELEME EKSENLERİ
-1. EVENT HİJYENİ
-   Dinleyicisi olmayan event'ler; aynı event'in birden çok dinleyicisi
-   arasında örtük sıra bağımlılığı; event üzerinden taşınan implicit state;
-   event zincirinin izlenemez hale geldiği noktalar
+# İNCELEME EKSENLERİ — AKIŞ SEVİYESİ
+1. ADIM YAPISI
+   Gereksiz adımlar; birleştirilebilir ekranlar; kullanıcıyı ileri-geri
+   gezdiren düzen; adım sayısının iş değerine oranı
 
-2. VALİDASYON BOŞLUĞU
-   Sadece .js'te olup Intf/Internal tarafında karşılığı olmayan kurallar
-   (istemci atlatılabilir); BE'de olup UI'a yansımayan hatalar; FE ile BE
-   arasında çelişen kurallar — hangisi doğru davranış
+2. STATE TAŞIMA
+   Adımlar arası veri taşıma mekanizmasının kırılganlığı; geri dönüşte kaybolan
+   veya temizlenmeyen state; yarıda kalan başvurunun (draft) yönetimi;
+   oturum kopmasında veri kaybı
 
-3. SÖZLEŞME SAĞLIĞI
-   DTO ile UI alanları arasındaki uyuşmazlıklar; Jackson anotasyon eksikleri
-   (bilinmeyen alan davranışı, tarih formatı, null serialization);
-   tip güvenliği kaybedilen dönüşüm noktaları
+3. EKRANLAR ARASI TUTARSIZLIK
+   Aynı alanın farklı ekranlarda farklı doğrulanması; aynı kavramın farklı
+   isim/tiple taşınması; farklı hata mesajı dili
 
-4. KULLANICI GERİ BİLDİRİMİ
-   showCustomMessageBox'ın bloklayıcı kullanımı ve alternatifleri; sessizce
-   yutulan hatalar; kullanıcıya anlamsız gelen teknik mesajlar; loading /
-   empty / kısmi veri durumlarının eksikliği
+4. İKİZ EKRANLARIN KONSOLİDASYONU
+   ApplicationAccount / ApplicationAccountEdit,
+   ApplicationPricing / ApplicationPricingTrio,
+   TagInquiry / TagOperation ve konsolidasyonda çıkan diğer kopyalar.
+   Birleştirme mi, ortak parçayı çıkarma mı, olduğu gibi bırakma mı — gerekçesiyle
 
-5. i18n
-   Eksik dil key'leri, hardcoded metinler, lang dosyasında olup kullanılmayan
-   ölü key'ler
+5. MODAL / POPUP DAVRANIŞI
+   showCustomMessageBox ve popup ekranların bloklayıcılığı; iptal edilince
+   parent'ta kalan yarım state; popup'tan dönen değerin doğrulanmaması
 
-6. DAYANIKLILIK
-   Timeout / retry / geri alma eksikleri; HopeReportGenerator senkron rapor
-   üretiminin bloklama ve zaman aşımı riski; exception yutan catch blokları;
-   yarım kalan işlem durumunda veri tutarlılığı
+# İNCELEME EKSENLERİ — EKRAN SEVİYESİ
+6. VALİDASYON BOŞLUĞU
+   Sadece .js'te olup sunucuda karşılığı olmayan kurallar (atlatılabilir);
+   BE'de olup UI'a yansımayan hatalar; FE-BE çelişkileri
 
-7. PERFORMANS
-   Sayfa açılışında gereksiz servis çağrısı; N+1 çağrı; paralelleştirilebilir
-   seri çağrılar; over-fetching; gereksiz yeniden yükleme
+7. SÖZLEŞME SAĞLIĞI
+   DTO-UI uyuşmazlıkları; Jackson anotasyon eksikleri (bilinmeyen alan, tarih
+   formatı, null serialization); tip güvenliğinin kaybedildiği dönüşümler
 
-8. NAVİGASYON VE AKIŞ
-   startNewProcess / CCT geçişlerinde kaybolan bağlam; geri dönüşte state
-   kaybı; kullanıcının kurtulamadığı çıkmaz durumlar; gereksiz adımlar
+8. EVENT HİJYENİ
+   Dinleyicisi olmayan event'ler; örtük sıra bağımlılığı; event üzerinden
+   taşınan implicit state
 
-9. BAKIM YAPILABİLİRLİK
-   PG_ controller içine sızmış iş mantığı; kopyala-yapıştır tekrarlar;
-   test edilemez yapılar; sorumluluk sızıntısı
+9. KULLANICI GERİ BİLDİRİMİ
+   Sessizce yutulan hatalar; teknik mesajların kullanıcıya gösterilmesi;
+   loading / empty / kısmi veri durumlarının eksikliği
 
-10. GÜVENLİK / YETKİ
+10. DAYANIKLILIK
+    Timeout / retry eksikleri; HopeReportGenerator senkron rapor üretiminin
+    bloklama ve zaman aşımı riski; exception yutan catch blokları; yarım kalan
+    işlemde veri tutarlılığı
+
+11. PERFORMANS
+    Adım geçişlerinde tekrar eden servis çağrıları; N+1; paralelleştirilebilir
+    seri çağrılar; over-fetching
+
+12. i18n
+    Eksik key, hardcoded metin, ölü key
+
+13. GÜVENLİK / YETKİ
     Sadece istemci tarafında yapılan yetki kontrolü; loglara düşen PII veya
-    kart/işyeri hassas verisi; bağımlılık sürümlerinin güvenlik durumu
-    (Jackson 2.9.6 dahil — sürümü doğrula ve bilinen risk varsa NOT olarak yaz,
-    kesin iddia etme)
+    işyeri/kart hassas verisi; bağımlılık sürümlerinin durumu (Jackson 2.9.6
+    dahil — sürümü doğrula, bilinen risk varsa NOT olarak yaz, kesin iddia etme)
 
-11. DEĞİŞİM RİSKİ
-    Bu ekrana dokunmadan önce hangi karakterizasyon testleri (characterization
-    test) yazılmalı — mevcut davranışı dondurup sonra güvenle değiştirebilmek için
+14. DEĞİŞİM RİSKİ
+    Bu akışa dokunmadan önce hangi karakterizasyon testleri (characterization
+    test) yazılmalı
 
-12. İZOLASYON FIRSATLARI
+15. İZOLASYON FIRSATLARI
     Strangler fig ile parça parça çıkarılabilecek, net sınırı olan alt-akışlar
 
 # HER BULGU İÇİN FORMAT
 ### [B-01] <Kısa başlık>
-- **Eksen:** <yukarıdaki 12'den biri>
+- **Eksen:** <yukarıdaki 15'ten biri>
+- **Kapsam:** <akış geneli | ekran adı/adları>
 - **Kanıt:** <dosya:satır> — kodda tam olarak ne var
 - **Neden problem:** somut başarısızlık senaryosu (hangi input/durum → hangi
   yanlış sonuç). "Best practice değil" gibi soyut gerekçe KABUL EDİLMEZ.
 - **Etki:** kullanıcı etkisi + teknik etki
 - **Önerilen çözüm:** somut yaklaşım, hangi dosyalar değişir
-- **Etkilenen diğer ekran/job/rapor:** (analiz Bölüm 11'i kullan)
+- **Etkilenen diğer ekran/akış/job:** (konsolidasyon Bölüm 9'u kullan)
 - **Nasıl geri alınır / kırılırsa nereden anlarız**
 - **Efor:** S / M / L — **Risk:** düşük / orta / yüksek
 - **Alternatifler ve neden bunu seçtin**
 
 # ÇIKTI
 1. Bulgular, etki × efor'a göre sıralı
-2. QUICK WINS — S efor + düşük risk olanlar ayrı bölüm
-3. YAPISAL DEĞİŞİKLİKLER — M/L efor olanlar ayrı bölüm, her biri için
-   before/after Mermaid akış diyagramı
-4. DAVRANIŞ KORUYAN (refactor) ve DAVRANIŞ DEĞİŞTİREN (fix/feature)
-   önerileri AYRI listele — karıştırma
-5. ÖNCE YAZILMASI GEREKEN TESTLER — karakterizasyon testi listesi
-6. BİLİNÇLİ OLARAK ÖNERMEDİKLERİM — değerlendirip elediğin şeyler ve nedeni
+2. QUICK WINS — S efor + düşük risk
+3. YAPISAL DEĞİŞİKLİKLER — M/L efor, her biri için before/after Mermaid diyagramı
+4. DAVRANIŞ KORUYAN (refactor) ve DAVRANIŞ DEĞİŞTİREN (fix/feature) önerileri
+   AYRI listele
+5. ÖNCE YAZILMASI GEREKEN TESTLER — karakterizasyon testi listesi, akış
+   seviyesi (uçtan uca) ve ekran seviyesi ayrı
+6. BİLİNÇLİ OLARAK ÖNERMEDİKLERİM — değerlendirip elediklerin ve nedeni
 
 # KURALLAR
 - "Yeniden yazalım", "modern framework'e taşıyalım", "mimariyi değiştirelim"
   türü öneriler YASAK. Her öneri mevcut yapı içinde, artımlı ve geri
   alınabilir olmalı.
-- Kanıtı olmayan bulgu yazma. En fazla 12 bulgu — kaliteyi sayıyla takas etme.
-- Bir davranışın NEDEN öyle olduğu belirsizse öneri üretme; analizin
-  "Açık Sorular" bölümüne ekle.
+- Kanıtı olmayan bulgu yazma. En fazla 15 bulgu — kaliteyi sayıyla takas etme.
+- Bir davranışın NEDEN öyle olduğu belirsizse öneri üretme; "Açık Sorular"a ekle.
 - Kod yazma. Onay verilince implementasyona geçilecek.
-- Çıktıyı docs/<ekran-adi>-iyilestirme.md dosyasına yaz.
+- Çıktıyı docs/entry-akis/99-iyilestirme.md dosyasına yaz.
 ```
 
 ---
 
-## Büyük ekranlar için bölme stratejisi
+## Tek ekran modu
 
-Ekran 1500+ satırsa Blok B'yi tek seferde çalıştırma — son bölümler gözle
-görülür şekilde sığlaşıyor. Üç pasa böl, her pasta Blok A'yı tekrar yapıştır:
+Akış değil tek bir ekran analiz edilecekse:
 
-| Pas | Yöntem adımları | Çıktı bölümleri | Çıktı dosyası |
-|---|---|---|---|
-| B1 | 1, 2, 3, 7 | 1, 2, 3, 4, 9 | `<ekran>-analiz-ui.md` |
-| B2 | 4, 5, 8 | 6, 7, 11 | `<ekran>-analiz-servis.md` |
-| B3 | 6 + validasyon taraması | 8, 10, 12, 13 | `<ekran>-analiz-validasyon.md` |
+- **B0 atlanır.** Blok A'daki "ANALİZ KAPSAMI" bölümünü tek ekrana göre yeniden yaz.
+- **B1 tek çalıştırılır**, `Derinlik: TAM`, `# BAĞLAM` satırındaki harita
+  referansı silinir.
+- **B2 atlanır**, yerine kartın kendisi Blok D'ye girdi olur.
+- **C ve D** aynen kullanılır; D'de 1-5 arası akış seviyesi eksenler düşer.
 
-Sonra dördüncü bir pasla üç dosyayı `#file:` ile verip "Bölüm 5 (Uçtan Uca
-Akışlar)'ı bu üç dokümanı birleştirerek yaz" de. Akış bölümü diğer hepsine
-dayandığı için en sona bırakılmalı.
+## Çok büyük tek ekran
+
+Bir PG_ ekranı tek başına 1500+ satırsa B1'i üç pasa böl, her pasta Blok A'yı
+tekrar yapıştır:
+
+| Pas | Yöntem adımları | Çıktı bölümleri |
+|---|---|---|
+| 1 | 1, 2, 7 | Künye, Akış Sözleşmesi, Yaşam Döngüsü, Event Haritası |
+| 2 | 3, 4 | Servis Çağrıları, Veri Sözleşmesi |
+| 3 | 5, 6 | Validasyon, Dialog, i18n, Ölü Kod |
+
+Sonra dördüncü pasta üç çıktıyı `#file:` ile verip "İç Akışlar" bölümünü yazdır —
+o bölüm diğer hepsine dayandığı için en sona bırakılmalı.
