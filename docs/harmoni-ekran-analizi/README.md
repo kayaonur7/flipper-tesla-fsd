@@ -22,8 +22,8 @@ yarısında değerlendirmeye kayıyor ve envanter eksik kalıyor.
 **2. Keşif shell'e, yorum modele.** Copilot'un 14 klasörü tarayarak envanter
 çıkarması hem yavaş hem eksik — uzun turlar tool-call limitine ve istek zaman
 aşımına takılıyor, ayrıca model bazı klasörleri sessizce atlıyor. `grep`/`find`
-atlamaz. Ön-tarama çıktıları workspace'e dosya olarak yazılıp prompt'a `#file:`
-ile veriliyor; model arama yapmıyor, hazır çıktıyı yorumluyor.
+atlamaz. Ön-tarama script'i çıktıları workspace'e dosya olarak yazıyor, prompt'a
+`#file:` ile veriliyor; model arama yapmıyor, hazır çıktıyı yorumluyor.
 
 **3. Akış seviyesi ile ekran seviyesi ayrı.** 14 ekranı tek pasta analiz etmek
 context'e sığmıyor; model ilk 3-4 ekranı düzgün, gerisini yüzeysel işliyor.
@@ -134,21 +134,37 @@ Primer ne kadar doğruysa analiz o kadar doğru çıkıyor. Bu blok tek başına
 
 ## Adım 2 — Ön-tarama (terminalde, Copilot'suz)
 
-[PROMPTS.md > Ön-tarama](./PROMPTS.md#ön-tarama-shell-komutları) bölümündeki 6
-komutu FE repo kökünde çalıştır. Yollarını kendi yapına göre düzelt.
+Tek komut. **FE repo kökünde** çalıştır:
 
-Çıktılar `docs/entry-akis/_tarama/` altına yazılır ve sonraki adımlarda `#file:`
-ile verilir. Bu sayede model klasör taramaz — sadece hazır çıktıyı yorumlar.
-B0'ın uzun sürüp zaman aşımına düşmesinin temel sebebi buydu.
+```bash
+# macOS / Linux / WSL / Windows'ta Git Bash
+bash docs/harmoni-ekran-analizi/scripts/on-tarama.sh
+```
 
-Kontrol et:
+```powershell
+# Windows PowerShell — VS Code'un varsayılan terminali
+powershell -ExecutionPolicy Bypass -File docs\harmoni-ekran-analizi\scripts\on-tarama.ps1
+```
 
-- `01-dosyalar.txt` içinde 14 ekranın hepsi görünüyor mu
-- `02-gecisler.txt` boş değil — boşsa mekanizma adları farklı, grep desenini düzelt
-- `06-ekran-boyutlari.txt` en büyük ekranları gösteriyor
+Akış yolun farklıysa parametre ver: `... on-tarama.sh cct/page/acq/application`
+(PowerShell'de `-Entry cct\page\acq\application`).
 
-Bir komut boş dönerse çıktıyı yine de bırak. Modelin "arandı, bulunamadı" ile
-"hiç aranmadı" arasındaki farkı bilmesi gerekiyor.
+Script `docs/entry-akis/_tarama/` altına altı dosya yazar ve sonunda özet basar.
+Bu çıktılar sonraki adımlarda `#file:` ile veriliyor; model klasör taramıyor,
+hazır çıktıyı yorumluyor. **B0'ın uzun sürüp zaman aşımına düşmesinin temel
+sebebi buydu.**
+
+Özette kontrol et:
+
+- **Ekran sayısı** beklediğin gibi mi (entry için 14) — değilse yol yanlış
+- **`<< BOŞ` uyarısı** var mı — o mekanizma kullanılmıyor olabilir ya da isim
+  farklıdır. Koddan doğrulayıp script içindeki deseni güncelle, tekrar çalıştır
+- Boş çıktıyı **silme**. Modelin "arandı, bulunamadı" ile "hiç aranmadı"
+  arasındaki farkı bilmesi gerekiyor
+
+Desenleri değiştirmen gerekirse script'in içinde numaralı bloklar halinde
+duruyor — `02-gecisler` bloğu navigasyon/dialog, `05-state` bloğu session
+kullanımı için.
 
 ---
 
@@ -296,7 +312,9 @@ Bulguları teker teker uygula — toplu istendiğinde model plandan sapıyor.
 
 | Belirti | Sebep | Çözüm |
 |---|---|---|
-| **Tur uzun sürüp network / timeout hatası veriyor** | Tek turda çok fazla dosya okuma ve arama | Ön-tarama komutlarını çalıştırdığından emin ol; Çalışma Disiplini bloğunu prompt'a ekle; turu daha küçük parçaya böl |
+| **Tur uzun sürüp network / timeout hatası veriyor** | Tek turda çok fazla dosya okuma ve arama | Ön-tarama script'ini çalıştırdığından emin ol; Çalışma Disiplini bloğunu prompt'a ekle; turu daha küçük parçaya böl |
+| `grep: command not found` / `find` beklenmedik çalışıyor | PowerShell'de bash komutu | `on-tarama.ps1` kullan, veya terminali Git Bash'e çevir (VS Code: terminal panelinde `+` yanındaki ok → Git Bash) |
+| PowerShell "execution policy" hatası | Script çalıştırma kapalı | Komutu `-ExecutionPolicy Bypass` ile çağır (yukarıdaki satırda zaten var) |
 | Tur yarıda kesildi, kısmi çıktı var | İstek zaman aşımı | Aynı prompt'u yeni chat'te tekrar gönder — Çalışma Disiplini bloğu "kaldığın yerden devam et" der |
 | "Continue to iterate?" çıkıyor | Agent mode tool-call limiti | Devam et; sık oluyorsa ön-tarama çıktılarının verildiğini kontrol et (model hâlâ kendi arama yapıyor olabilir) |
 | BE tarafı hiç analiz edilmemiş, "BE TARAFI ANALİZ EDİLMEDİ" notları var | İkinci repo workspace'te değil veya indekslenmemiş | Adım 0.1'i tekrarla, doğrulama komutunu çalıştır |

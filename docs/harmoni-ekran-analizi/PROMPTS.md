@@ -12,7 +12,7 @@ Set, tek ekranlık analiz için de kullanılabilir (bkz. [Tek ekran modu](#tek-e
 | Blok | Amaç | Kaç kez |
 |---|---|---|
 | [A](#blok-a--framework--akış-primer) | Framework + akış primer | Her prompt'un başına yapıştırılır |
-| [Ön-tarama](#ön-tarama-shell-komutları) | Keşif çıktılarını shell ile üret | 1 (Copilot'suz) |
+| [Ön-tarama](#ön-tarama-script) | Keşif çıktılarını script ile üret | 1 (Copilot'suz) |
 | [B0a](#b0a--envanter-ve-sınıflandırma) | Ekran envanteri, sınıflandırma | 1 |
 | [B0b](#b0b--geçiş-grafiği-ve-girişçıkış) | Geçiş grafiği, giriş/çıkış noktaları | 1 |
 | [B0c](#b0c--state-servis-ikizler-ve-plan) | Paylaşılan state, servis matrisi, derin analiz planı | 1 |
@@ -28,7 +28,7 @@ ekranın içinde durmuyor.
 
 **Neden B0 üçe bölünmüş:** Tek turda 14 klasör okuma + iki repoda string
 taraması + matris üretme, Copilot agent mode'da tool-call limitine ve istek
-zaman aşımına takılıyor. Keşfin pahalı kısmı ön-tarama ile shell'e devredildi;
+zaman aşımına takılıyor. Keşfin pahalı kısmı ön-tarama script'ine devredildi;
 kalan iş üç kısa tura bölündü.
 
 ---
@@ -53,49 +53,55 @@ kalan iş üç kısa tura bölündü.
 
 ---
 
-## Ön-tarama (shell komutları)
+## Ön-tarama (script)
 
-> Copilot'ta değil, **terminalde sen çalıştır**. Model 14 klasörü tarayarak
-> bulacağına, hazır çıktıyı okusun — hem çok daha hızlı hem de tarama eksiksiz
-> oluyor (model bazı klasörleri atlayabiliyor, grep atlamaz).
+> Copilot'ta değil, **terminalde sen çalıştır** — tek komut. Model 14 klasörü
+> tarayarak bulacağına hazır çıktıyı okusun: hem çok daha hızlı, hem tarama
+> eksiksiz oluyor (model bazı klasörleri atlayabiliyor, `grep` atlamaz).
 
-FE repo kökünde çalıştır. Yolları kendi yapına göre düzelt:
+**FE repo kökünde** çalıştır:
 
 ```bash
-mkdir -p docs/entry-akis/_tarama
-E=cct/page/acq/entry
-
-# 1. Dosya envanteri + satır sayıları
-find $E -type f \( -name "*.java" -o -name "*.html" -o -name "*.js" -o -name "*.json" \) \
-  -exec wc -l {} + | sort -k2 > docs/entry-akis/_tarama/01-dosyalar.txt
-
-# 2. Navigasyon / dialog / event çağrıları
-grep -rn "startNewProcess\|showCustomMessageBox\|fireEvent\|CCT\|openDialog\|closeDialog" $E \
-  > docs/entry-akis/_tarama/02-gecisler.txt
-
-# 3. Servis (Intf) çağrıları
-grep -rnE "HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf\s*\.|[A-Za-z]+Service\s*\." $E \
-  > docs/entry-akis/_tarama/03-servisler.txt
-
-# 4. Entry'ye DIŞARIDAN yapılan çağrılar (giriş noktaları)
-grep -rn "entry" cct/page/acq --include=*.java --include=*.js | grep -v "/entry/" \
-  > docs/entry-akis/_tarama/04-giris-noktalari.txt
-
-# 5. Session / global state kullanımı
-grep -rniE "session|getAttribute|setAttribute|processContext|globalMap" $E \
-  > docs/entry-akis/_tarama/05-state.txt
-
-# 6. Satır sayısı özeti (hangi ekran ne kadar büyük)
-for d in $E/*/; do echo "$(find "$d" -type f -exec cat {} + 2>/dev/null | wc -l) $(basename "$d")"; done \
-  | sort -rn > docs/entry-akis/_tarama/06-ekran-boyutlari.txt
+# macOS / Linux / WSL / Windows'ta Git Bash
+bash docs/harmoni-ekran-analizi/scripts/on-tarama.sh
 ```
+
+```powershell
+# Windows PowerShell (VS Code'un varsayılan terminali)
+powershell -ExecutionPolicy Bypass -File docs\harmoni-ekran-analizi\scripts\on-tarama.ps1
+```
+
+Akış yolu farklıysa parametre ver:
+
+```bash
+bash docs/harmoni-ekran-analizi/scripts/on-tarama.sh cct/page/acq/application
+```
+```powershell
+... on-tarama.ps1 -Entry cct\page\acq\application
+```
+
+Script şu altı dosyayı `docs/entry-akis/_tarama/` altına yazar ve sonunda her
+birinin satır sayısını özetler:
+
+| Dosya | İçerik | Kullanan blok |
+|---|---|---|
+| `01-dosyalar.txt` | Dosya envanteri + satır sayıları | B0a |
+| `02-gecisler.txt` | `startNewProcess`, `showCustomMessageBox`, `fireEvent`, `CCT`, `openDialog` | B0b |
+| `03-servisler.txt` | `HMN_*Intf` / `*Service` çağrıları | B0c |
+| `04-giris-noktalari.txt` | Akışa dışarıdan yapılan çağrılar | B0b |
+| `05-state.txt` | `session`, `getAttribute`, `setAttribute`, `processContext` | B0c |
+| `06-ekran-boyutlari.txt` | Ekran başına toplam satır, büyükten küçüğe | B0a, B0c |
 
 Çıktılar workspace içinde dosya olduğu için prompt'a **`#file:` ile referans
 verilir** — chat'e yapıştırmaya gerek yok, context de şişmez.
 
-Komutlardan biri boş dönerse: o mekanizma bu akışta kullanılmıyor olabilir ya
-da isim farklıdır. Boş çıktıyı yine de bırak — modelin "arayıp bulamadım" ile
-"hiç aramadım" arasındaki farkı bilmesi gerekiyor.
+**Özette `<< BOŞ` uyarısı çıkarsa:** o mekanizma bu akışta kullanılmıyor
+olabilir, ya da isim farklıdır. Koddan doğrulayıp script içindeki deseni
+güncelle ve tekrar çalıştır. Boş çıktıyı silme — modelin "arandı, bulunamadı"
+ile "hiç aranmadı" arasındaki farkı bilmesi gerekiyor.
+
+**Ekran sayısı** satırını kontrol et: beklediğin sayı (entry için 14) gelmiyorsa
+yol yanlış.
 
 ---
 
