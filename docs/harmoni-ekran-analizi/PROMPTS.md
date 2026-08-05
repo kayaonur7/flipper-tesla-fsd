@@ -12,16 +12,90 @@ Set, tek ekranlık analiz için de kullanılabilir (bkz. [Tek ekran modu](#tek-e
 | Blok | Amaç | Kaç kez |
 |---|---|---|
 | [A](#blok-a--framework--akış-primer) | Framework + akış primer | Her prompt'un başına yapıştırılır |
-| [B0](#blok-b0--akış-envanteri-ve-haritası) | Akış haritası, ekran envanteri, önceliklendirme | 1 |
-| [B1](#blok-b1--ekran-kartı) | Tek ekran/grup derin analizi | Grup sayısı kadar (~6-7) |
+| [Ön-tarama](#ön-tarama-shell-komutları) | Keşif çıktılarını shell ile üret | 1 (Copilot'suz) |
+| [B0a](#b0a--envanter-ve-sınıflandırma) | Ekran envanteri, sınıflandırma | 1 |
+| [B0b](#b0b--geçiş-grafiği-ve-girişçıkış) | Geçiş grafiği, giriş/çıkış noktaları | 1 |
+| [B0c](#b0c--state-servis-ikizler-ve-plan) | Paylaşılan state, servis matrisi, derin analiz planı | 1 |
+| [B1](#blok-b1--ekran-kartı) | Tek ekran/grup derin analizi | Grup sayısı kadar (~6-8) |
 | [B2](#blok-b2--konsolidasyon) | Ekranlar arası birleşik görünüm | 1 |
-| [C](#blok-c--doğrulama-pası) | Doğrulama | B0 ve B2'den sonra |
+| [C](#blok-c--doğrulama-pası) | Doğrulama | B0c ve B2'den sonra |
 | [D](#blok-d--iyileştirme-planı) | İyileştirme planı | 1 |
 
 **Neden bu sırayla:** B0 olmadan hangi ekranın çekirdek hangisinin yardımcı
 olduğu bilinmiyor ve 14 ekrana eşit efor harcanıyor. B2 olmadan akışın asıl
 problemleri — adımlar arası tutarsızlıklar — hiç görünmüyor, çünkü hiçbiri tek
 ekranın içinde durmuyor.
+
+**Neden B0 üçe bölünmüş:** Tek turda 14 klasör okuma + iki repoda string
+taraması + matris üretme, Copilot agent mode'da tool-call limitine ve istek
+zaman aşımına takılıyor. Keşfin pahalı kısmı ön-tarama ile shell'e devredildi;
+kalan iş üç kısa tura bölündü.
+
+---
+
+## Çalışma Disiplini
+
+> Bu kısa blok **B0a, B0b, B0c, B1 ve B2**'nin `# KURALLAR` bölümüne eklenir.
+> Uzun turların yarıda kesilmesine karşı koruma.
+
+```
+# ÇALIŞMA DİSİPLİNİ
+- Her ana bölümü bitirir bitmez dosyaya YAZ. Sonda toplu yazma — tur kesilirse
+  o ana kadarki iş kaybolmasın.
+- Ön-tarama çıktılarında (docs/entry-akis/_tarama/) zaten olan bilgi için
+  dosya AÇMA, arama YAPMA. Tarama çıktısı tek doğruluk kaynağıdır.
+- Aynı dosyayı iki kez okuma.
+- Sohbette açıklama/özet yapma. Doğrudan hedef dosyaya yaz, sonunda tek
+  paragraf durum bildir.
+- Tur kesilirse: hedef dosyanın mevcut halini oku, KALDIĞIN YERDEN devam et,
+  baştan yazma.
+```
+
+---
+
+## Ön-tarama (shell komutları)
+
+> Copilot'ta değil, **terminalde sen çalıştır**. Model 14 klasörü tarayarak
+> bulacağına, hazır çıktıyı okusun — hem çok daha hızlı hem de tarama eksiksiz
+> oluyor (model bazı klasörleri atlayabiliyor, grep atlamaz).
+
+FE repo kökünde çalıştır. Yolları kendi yapına göre düzelt:
+
+```bash
+mkdir -p docs/entry-akis/_tarama
+E=cct/page/acq/entry
+
+# 1. Dosya envanteri + satır sayıları
+find $E -type f \( -name "*.java" -o -name "*.html" -o -name "*.js" -o -name "*.json" \) \
+  -exec wc -l {} + | sort -k2 > docs/entry-akis/_tarama/01-dosyalar.txt
+
+# 2. Navigasyon / dialog / event çağrıları
+grep -rn "startNewProcess\|showCustomMessageBox\|fireEvent\|CCT\|openDialog\|closeDialog" $E \
+  > docs/entry-akis/_tarama/02-gecisler.txt
+
+# 3. Servis (Intf) çağrıları
+grep -rnE "HMN_[A-Za-z_]*Intf|[A-Za-z]+Intf\s*\.|[A-Za-z]+Service\s*\." $E \
+  > docs/entry-akis/_tarama/03-servisler.txt
+
+# 4. Entry'ye DIŞARIDAN yapılan çağrılar (giriş noktaları)
+grep -rn "entry" cct/page/acq --include=*.java --include=*.js | grep -v "/entry/" \
+  > docs/entry-akis/_tarama/04-giris-noktalari.txt
+
+# 5. Session / global state kullanımı
+grep -rniE "session|getAttribute|setAttribute|processContext|globalMap" $E \
+  > docs/entry-akis/_tarama/05-state.txt
+
+# 6. Satır sayısı özeti (hangi ekran ne kadar büyük)
+for d in $E/*/; do echo "$(find "$d" -type f -exec cat {} + 2>/dev/null | wc -l) $(basename "$d")"; done \
+  | sort -rn > docs/entry-akis/_tarama/06-ekran-boyutlari.txt
+```
+
+Çıktılar workspace içinde dosya olduğu için prompt'a **`#file:` ile referans
+verilir** — chat'e yapıştırmaya gerek yok, context de şişmez.
+
+Komutlardan biri boş dönerse: o mekanizma bu akışta kullanılmıyor olabilir ya
+da isim farklıdır. Boş çıktıyı yine de bırak — modelin "arayıp bulamadım" ile
+"hiç aramadım" arasındaki farkı bilmesi gerekiyor.
 
 ---
 
@@ -100,10 +174,9 @@ entry = üye işyeri başvuru giriş akışı.
 
 ---
 
-## Blok B0 — Akış Envanteri ve Haritası
+## B0a — Envanter ve Sınıflandırma
 
-> İlk çalıştırılan blok. Tek ekranın içine girmez; akışın iskeletini çıkarır ve
-> sonraki adımların önceliğini belirler.
+> Kısa tur. Ön-tarama çıktıları hazır olmalı.
 
 ```
 [BLOK A BURAYA]
@@ -111,91 +184,173 @@ entry = üye işyeri başvuru giriş akışı.
 # ROL
 Kıdemli yazılım mimarısın. Kod yazmayacaksın.
 
+# GİRDİ — ön-tarama çıktıları (hazır, yeniden tarama YAPMA)
+#file:docs/entry-akis/_tarama/01-dosyalar.txt
+#file:docs/entry-akis/_tarama/06-ekran-boyutlari.txt
+
 # GÖREV
-cct/page/acq/entry akışının HARİTASINI çıkar. Bu turda hiçbir ekranın iç
-mantığına derinlemesine girme — akışın iskeletini, ekranlar arası ilişkileri
-ve paylaşılan state'i belgele.
+entry akışının ekran envanterini çıkar ve her ekranı sınıflandır.
+Bu turda SADECE envanter ve sınıflandırma var — geçiş grafiği, state, servis
+analizi SONRAKİ turlarda. Onlara girme.
 
-# YÖNTEM (sırayla, atlama)
-1. ENVANTER: entry altındaki her PG_* klasörünü aç. Her biri için dosya
-   dörtlüsünü (java / html / js / lang) ve her dosyanın SATIR SAYISINI çıkar.
-   Eksik dosyası olan ekranları işaretle.
+# YÖNTEM
+1. Tarama çıktısından her PG_* klasörünü ve dosyalarını tabloya dök.
+   Dosya dörtlüsü (java / html / js / lang) eksik olanları işaretle.
+2. Her ekranın SADECE .java dosyasının ilk ~60 satırına ve .html dosyasının
+   başlık/ana bölümüne bak — tam okuma yapma. Amacın rolü anlamak.
+3. Her ekranı sınıflandır: adım sayfası / modal popup / yardımcı görünüm /
+   arama-sorgu ekranı. Gerekçeni yaz (isim soneki tek başına gerekçe değil —
+   kodda kanıt ara).
+4. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>".
 
-2. SINIFLANDIRMA: Her ekranı şu tiplerden birine ata ve gerekçesini yaz:
-   adım sayfası / modal popup / yardımcı görünüm / arama-sorgu ekranı
-   Kanıt: nasıl açıldığı (startNewProcess mi, dialog mu, CCT mi).
-
-3. GEÇİŞ GRAFİĞİ: Tüm entry altında şu string'leri ara ve her eşleşmeyi incele:
-   startNewProcess, CCT, dialog, showCustomMessageBox, fireEvent
-   Kim kimi açıyor, hangi koşulla, hangi parametreyi taşıyarak?
-   Geri dönüş (parent'a dönüş) nasıl oluyor?
-
-4. GİRİŞ VE ÇIKIŞ NOKTALARI: Bu akışa dışarıdan nereden giriliyor? Kardeş
-   klasörlerde (annulment / application / branchopening / inquiry) entry
-   ekranlarına yapılan çağrıları ara. Akış tamamlanınca nereye gidiliyor?
-
-5. PAYLAŞILAN STATE — bu turun en kritik adımı:
-   Adımlar arası taşınan her veri parçası için: nerede saklanıyor (session /
-   process context / CCT parametresi / gizli form alanı / servis üzerinden
-   yeniden okuma), hangi ekranda YAZILIYOR, hangi ekranda OKUNUYOR.
-
-6. SERVİS KESİŞİMİ: Tüm entry altındaki HMN_*_Intf çağrılarını topla.
-   Hangi arayüz metodu kaç farklı ekrandan çağrılıyor?
-
-7. İKİZ / VARYANT TARAMASI: Primer'da işaretlenen ikizleri (Account/AccountEdit,
-   Pricing/PricingTrio, TagInquiry/TagOperation) ve tespit ettiğin diğer
-   benzerleri karşılaştır. Dosya boyutları, ortak metot adları, ortak DTO'lar.
-   Bu turda yüzeysel bak — "kopya şüphesi VAR / YOK / İNCELENMELİ" düzeyinde.
-
-8. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>" kullan.
-
-# ÇIKTI FORMATI
-
+# ÇIKTI
 ## 1. Ekran Envanteri
-Tablo: Ekran | Tip | java satır | html satır | js satır | lang key sayısı |
-Eksik dosya | Bir cümlelik rol
+Tablo: Ekran | Tip | Sınıflandırma gerekçesi | java satır | html satır |
+js satır | lang key sayısı | Eksik dosya | Bir cümlelik rol
 
-## 2. Geçiş Grafiği
+## 2. Boyut Dağılımı
+En büyük 5 ekran ve satır sayıları — hangileri derin analiz gerektirecek
+
+## 3. Anomaliler
+Dosya dörtlüsü eksik olanlar, beklenmedik ek dosyalar, isim konvansiyonu
+dışına çıkanlar
+
+# KURALLAR
+[ÇALIŞMA DİSİPLİNİ BLOĞUNU BURAYA EKLE]
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+- Ekranların İÇ mantığına girme. Sadece envanter.
+- İYİLEŞTİRME ÖNERİSİ YAZMA.
+- Çıktıyı docs/entry-akis/00a-envanter.md dosyasına yaz.
+```
+
+---
+
+## B0b — Geçiş Grafiği ve Giriş/Çıkış
+
+> Kısa tur. Girdisi hazır grep çıktısı — model tarama yapmaz, yorumlar.
+
+```
+[BLOK A BURAYA]
+
+# GİRDİ
+#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/_tarama/02-gecisler.txt
+#file:docs/entry-akis/_tarama/04-giris-noktalari.txt
+
+# GÖREV
+Ekranlar arası geçiş grafiğini ve akışın giriş/çıkış noktalarını çıkar.
+Bu turda state ve servis analizi YOK — sonraki turda.
+
+# YÖNTEM
+1. 02-gecisler.txt içindeki her satırı incele. Her çağrı için: kim çağırıyor,
+   hangi ekranı açıyor, hangi koşulla, hangi parametreyi taşıyarak.
+   Hedefi satırdan anlaşılmıyorsa SADECE o dosyanın ilgili bölümünü aç.
+2. Geri dönüş yollarını çıkar: modal kapanınca / adım tamamlanınca parent'a
+   nasıl dönülüyor, dönüş değeri var mı.
+3. 04-giris-noktalari.txt ile akışa dışarıdan girişleri belirle. Kardeş
+   akışlardan (annulment / application / branchopening / inquiry) hangileri
+   entry ekranlarını çağırıyor.
+4. Akış tamamlanınca ve iptal edilince nereye gidiliyor.
+5. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>".
+
+# ÇIKTI
+## 1. Geçiş Grafiği
 Mermaid flowchart — düğümler ekranlar, oklar geçişler. Ok etiketi = tetikleyici
 (buton/event) + taşınan parametre. Modal'ları farklı şekille göster.
-Altına tablo: Kaynak | Hedef | Mekanizma (startNewProcess/CCT/dialog) |
-Koşul | Taşınan parametre | Dönüş değeri | Kod referansı
+
+## 2. Geçiş Tablosu
+Kaynak | Hedef | Mekanizma (startNewProcess/CCT/dialog) | Koşul |
+Taşınan parametre | Dönüş değeri | Kod referansı
 
 ## 3. Giriş ve Çıkış Noktaları
 Akışa nereden giriliyor (kardeş akışlar dahil), hangi ön koşullarla,
 tamamlanınca / iptal edilince nereye gidiliyor
 
-## 4. Paylaşılan State Sözlüğü
-Tablo: Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) |
-Tip | Akış sonunda ne oluyor
+## 4. Ulaşılamayan Ekranlar
+Envanterde olup grafikte hiçbir geçişle açılmayan ekranlar — ölü ekran şüphesi
+
+# KURALLAR
+[ÇALIŞMA DİSİPLİNİ BLOĞUNU BURAYA EKLE]
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+- Her geçişin yanında dosya:satır referansı olsun.
+- State ve servis analizine GİRME.
+- İYİLEŞTİRME ÖNERİSİ YAZMA.
+- Çıktıyı docs/entry-akis/00b-gecis-grafigi.md dosyasına yaz.
+```
+
+---
+
+## B0c — State, Servis, İkizler ve Plan
+
+> B0'ın en değerli turu. Sonraki tüm adımların önceliğini bu belirliyor.
+
+```
+[BLOK A BURAYA]
+
+# GİRDİ
+#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/00b-gecis-grafigi.md
+#file:docs/entry-akis/_tarama/03-servisler.txt
+#file:docs/entry-akis/_tarama/05-state.txt
+#file:docs/entry-akis/_tarama/06-ekran-boyutlari.txt
+
+# GÖREV
+Adımlar arası paylaşılan state'i, servis kesişimini ve ikiz ekranları çıkar;
+sonra derin analiz planını üret.
+
+# YÖNTEM
+1. PAYLAŞILAN STATE — bu turun en kritik adımı:
+   05-state.txt'deki her kullanımı incele. Adımlar arası taşınan her veri
+   parçası için: nerede saklanıyor (session / process context / CCT parametresi /
+   gizli form alanı / servisten yeniden okuma), hangi ekranda YAZILIYOR,
+   hangi ekranda OKUNUYOR.
+   Geçiş tablosundaki "taşınan parametre" sütunuyla çapraz kontrol et.
+
+2. SERVİS KESİŞİMİ: 03-servisler.txt'den hangi arayüz metodunun kaç farklı
+   ekrandan çağrıldığını çıkar. Aynı metot farklı parametrelerle mi çağrılıyor?
+
+3. İKİZ / VARYANT TARAMASI: Primer'daki ikizleri (Account/AccountEdit,
+   Pricing/PricingTrio, TagInquiry/TagOperation) ve envanterden tespit ettiğin
+   diğer benzerleri karşılaştır: dosya boyutları, ortak metot adları, ortak
+   DTO'lar, ortak lang key'leri. Bu turda YÜZEYSEL bak — "kopya şüphesi
+   VAR / YOK / İNCELENMELİ" düzeyinde yeter.
+
+4. DERİN ANALİZ PLANI: 14 ekranı 6-8 gruba indir.
+
+5. Kodda göremediğini yazma. "DOĞRULANAMADI: <neden>".
+
+# ÇIKTI
+## 1. Paylaşılan State Sözlüğü
+Tablo: Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip |
+Akış sonunda ne oluyor
 Ayrıca açıkça listele:
 - Yazılıp hiç okunmayan veriler
 - Okunup hiç yazılmayan (dışarıdan gelmesi beklenen) veriler
 
-## 5. Servis Paylaşım Matrisi
+## 2. Servis Paylaşım Matrisi
 Tablo: Intf metodu | Çağıran ekranlar | Çağrı sayısı | Aynı parametrelerle mi
 
-## 6. İkiz / Varyant Adayları
+## 3. İkiz / Varyant Adayları
 Tablo: Ekran A | Ekran B | Benzerlik kanıtı | Kopya şüphesi (VAR/YOK/İNCELENMELİ)
 
-## 7. DERİN ANALİZ PLANI
+## 4. DERİN ANALİZ PLANI
 Ekranları önem sırasına diz ve gruplandır. Her grup için:
 - Grup adı ve içindeki ekranlar
 - Neden birlikte analiz edilmeli (ortak state / ikiz / ardışık adım)
 - Derinlik: TAM (çekirdek adım) veya ÖZET (yardımcı/popup)
-Amaç: 14 ekranı 6-8 gruba indirmek. Bu plan Blok B1 çalıştırmalarının
-girdisi olacak.
+- Tahmini büyüklük (toplam satır) — 2000 satırı aşan grubu ikiye böl
+Bu plan Blok B1 çalıştırmalarının girdisi olacak.
 
-## 8. Açık Sorular
+## 5. Açık Sorular
 Haritadan çözülemeyen, koda derin bakmadan cevaplanamayacak sorular
 
 # KURALLAR
+[ÇALIŞMA DİSİPLİNİ BLOĞUNU BURAYA EKLE]
 - Türkçe yaz, teknik terimleri İngilizce bırak.
 - Her iddianın yanında dosya:satır referansı olsun.
-- Bu turda ekranların İÇ mantığına girme (validasyon detayı, DTO alan listesi
-  vb. YOK). Sadece iskelet ve ilişkiler.
+- Ekranların İÇ mantığına girme (validasyon detayı, DTO alan listesi YOK).
 - İYİLEŞTİRME ÖNERİSİ YAZMA.
-- Çıktıyı docs/entry-akis/00-akis-haritasi.md dosyasına yaz.
+- Çıktıyı docs/entry-akis/00c-state-ve-plan.md dosyasına yaz.
 ```
 
 ---
@@ -209,12 +364,14 @@ Haritadan çözülemeyen, koda derin bakmadan cevaplanamayacak sorular
 [BLOK A BURAYA]
 
 # BAĞLAM
-#file:docs/entry-akis/00-akis-haritasi.md
-Akış haritası doğrulandı. Bu turda haritadaki tek bir gruba derinlemesine
-bakacaksın.
+#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/00b-gecis-grafigi.md
+#file:docs/entry-akis/00c-state-ve-plan.md
+Akış haritası (B0a-b-c) doğrulandı. Bu turda plandaki tek bir gruba
+derinlemesine bakacaksın.
 
 # BU TURUN KAPSAMI
-Grup      : <B0'daki grup adı>
+Grup      : <00c'deki Derin Analiz Planı'ndan grup adı>
 Ekranlar  : <PG_X, PG_Y>
 Derinlik  : <TAM | ÖZET>
 Dosyalar  : #file:... (her ekranın java / html / js dosyalarını tek tek ver)
@@ -319,7 +476,8 @@ Fark kasıtlı mı görünüyor | Kod referansları
 [BLOK A BURAYA]
 
 # BAĞLAM
-#file:docs/entry-akis/00-akis-haritasi.md
+#file:docs/entry-akis/00b-gecis-grafigi.md
+#file:docs/entry-akis/00c-state-ve-plan.md
 #file:docs/entry-akis/ekranlar/<grup-1>.md
 #file:docs/entry-akis/ekranlar/<grup-2>.md
 ... (tüm kartları ekle)
@@ -390,7 +548,7 @@ Tüm kartlardan gelen açık soruların birleşik ve tekilleştirilmiş listesi
 
 ## Blok C — Doğrulama Pası
 
-> İki kez çalıştırılır: B0'dan sonra (harita için) ve B2'den sonra
+> İki kez çalıştırılır: B0c'den sonra (harita için) ve B2'den sonra
 > (konsolidasyon için). **Her zaman yeni chat'te** — aynı sohbette model kendi
 > çıktısını savunma eğilimine giriyor.
 
@@ -432,7 +590,8 @@ validasyon, dialog, hata yolu
 [BLOK A BURAYA]
 
 # BAĞLAM
-#file:docs/entry-akis/00-akis-haritasi.md
+#file:docs/entry-akis/00b-gecis-grafigi.md
+#file:docs/entry-akis/00c-state-ve-plan.md
 #file:docs/entry-akis/90-konsolidasyon.md
 (gerekirse ilgili ekran kartları)
 Bu dokümanlar gerçek koddan çıkarıldı, doğrulama pasından geçti ve tarafımdan
@@ -547,7 +706,8 @@ entry akışı için iyileştirme alanlarını çıkar. Kod yazma, plan üret.
 
 Akış değil tek bir ekran analiz edilecekse:
 
-- **B0 atlanır.** Blok A'daki "ANALİZ KAPSAMI" bölümünü tek ekrana göre yeniden yaz.
+- **Ön-tarama ve B0a/B0b/B0c atlanır.** Blok A'daki "ANALİZ KAPSAMI" bölümünü
+  tek ekrana göre yeniden yaz.
 - **B1 tek çalıştırılır**, `Derinlik: TAM`, `# BAĞLAM` satırındaki harita
   referansı silinir.
 - **B2 atlanır**, yerine kartın kendisi Blok D'ye girdi olur.
