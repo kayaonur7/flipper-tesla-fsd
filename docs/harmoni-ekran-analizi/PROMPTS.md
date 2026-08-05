@@ -176,10 +176,30 @@ uymamasıdır. Harmoni'nin kendi idiomları var; tahmin etmek yerine koddan çı
 $E = "cct\page\acq\entry"; $O = "docs\entry-akis\_tarama"
 ```
 
-#### K1 — En sık çağrılan nesneler (servis deseni için)
+#### K0 — Ortam kontrolü
 
 ```powershell
-(Get-ChildItem $E -Recurse -File -Include *.java | Select-String -Pattern '([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*[a-z][A-Za-z0-9_]*\s*\(' -AllMatches).Matches | ForEach-Object { $_.Groups[1].Value } | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
+$PSVersionTable.PSVersion
+@(Get-ChildItem $E -Recurse -File -Include *.java).Count
+```
+
+İkincisi `0` dönerse `PG_*.java` dosyaları bu klasörün altında değil; keşfi
+ona göre yeniden yönlendir.
+
+#### K1 — En sık çağrılan nesneler (servis deseni için)
+
+`Select-String -AllMatches` çıktısındaki `.Matches`, sonuç boş veya tek
+olduğunda sürüme göre `$null` dönüp "Cannot index into a null array" hatası
+veriyor. `[regex]::Matches` her sürümde güvenli — blok halinde yapıştır:
+
+```powershell
+$rx = [regex]'([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*[a-z][A-Za-z0-9_]*\s*\('
+$hits = New-Object System.Collections.ArrayList
+Get-ChildItem $E -Recurse -File -Include *.java | ForEach-Object {
+    $t = Get-Content -LiteralPath $_.FullName -Raw
+    if ($t) { foreach ($m in $rx.Matches($t)) { [void]$hits.Add($m.Groups[1].Value) } }
+}
+$hits | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
 ```
 
 Çıktıdaki servis benzeri isimler (`...Intf`, `...Service`, `...Manager`,
@@ -198,7 +218,13 @@ sınıf adlarını da buradan al.
 #### K3 — get/set çağrıları (state deseni için)
 
 ```powershell
-(Get-ChildItem $E -Recurse -File -Include *.java,*.js | Select-String -Pattern '\b(get|set|put|read|write)[A-Z][A-Za-z0-9_]*\s*\(' -AllMatches).Matches | ForEach-Object { ($_.Value -replace '\s*\($','') } | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
+$rx = [regex]'\b(?:get|set|put|read|write)[A-Z][A-Za-z0-9_]*(?=\s*\()'
+$hits = New-Object System.Collections.ArrayList
+Get-ChildItem $E -Recurse -File -Include *.java,*.js | ForEach-Object {
+    $t = Get-Content -LiteralPath $_.FullName -Raw
+    if ($t) { foreach ($m in $rx.Matches($t)) { [void]$hits.Add($m.Value) } }
+}
+$hits | Group-Object | Sort-Object Count -Descending | Select-Object -First 40 Count, Name
 ```
 
 Harmoni state'i `session` üzerinden taşımıyor olabilir. Çıktıda `getPageData`,

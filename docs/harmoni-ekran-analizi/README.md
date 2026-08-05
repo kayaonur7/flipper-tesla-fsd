@@ -319,6 +319,7 @@ Bulguları teker teker uygula — toplu istendiğinde model plandan sapıyor.
 | Belirti | Sebep | Çözüm |
 |---|---|---|
 | **Tur uzun sürüp network / timeout hatası veriyor** | Tek turda çok fazla dosya okuma ve arama | Ön-tarama script'ini çalıştırdığından emin ol; Çalışma Disiplini bloğunu prompt'a ekle; turu daha küçük parçaya böl |
+| `Cannot index into a null array` | `Select-String -AllMatches` çıktısındaki `.Matches` boş/tek sonuçta `$null` dönüyor | K1/K3'ün `[regex]::Matches` sürümünü kullan ([Desen tutmadıysa](./PROMPTS.md#desen-tutmadıysa-gerçek-desenleri-koddan-çıkar)) |
 | Bir tarama dosyası hiç oluşmadı (PowerShell) | Sıfır eşleşme — boş pipeline `Set-Content`'e ulaşmıyor | Desen bu kod tabanına uymuyor: [Desen tutmadıysa](./PROMPTS.md#desen-tutmadıysa-gerçek-desenleri-koddan-çıkar) bölümündeki K1-K5 keşif komutlarıyla gerçek deseni bul |
 | `04-giris-noktalari` boş | Literal klasör adı aranmış; navigasyon sayfa sınıfını referanslıyor | Script güncellendi (ekran adlarını arıyor); elle çalıştırıyorsan K5 komutunu kullan |
 | `grep: command not found` / `find` beklenmedik çalışıyor | PowerShell'de bash komutu | `on-tarama.ps1` kullan, veya terminali Git Bash'e çevir (VS Code: terminal panelinde `+` yanındaki ok → Git Bash) |
