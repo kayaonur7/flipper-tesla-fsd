@@ -65,13 +65,35 @@ src\main\webapp\page\acq\application\entry\PG_ApplicationAccount\
 
 Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 
-### Analizi bozabilecek üç tuzak
+### Repoda doğrulanmış olgular
 
-1. **`*Super.java` üretilmiş koddur.** İş mantığı `Super`'siz sınıftadır.
-   Karıştırılırsa analiz üretilmiş widget binding'lerini iş kuralı sanır.
-2. **Akış 14 ekrandan ibaret değil.** `page\acq\include\...` altındaki
-   `PG_Include*` sayfaları akışa dahil ediliyor ama başka ağaçta duruyor.
-3. **İki ayrı java ağacı var.** Controller'lar `com.ykb.hmn.acq...`,
+| Olgu | Sayı / detay |
+|---|---|
+| Ekran klasörü (`$W`) | 14, kökte dosya yok |
+| webapp dosyası | 90 — her ekran 6'lı set + fazlalıklar |
+| java (`$J`) | 50 — dev + üretilmiş `Super`, `PG_` + `Con_` |
+| entry CCT'si | 9 dosya, 14 ekranı kapsamıyor |
+| CCT'de TASK'ı olmayan ekran | 4: `PG_AccountWalletPopup`, `PG_AddNote`, `PG_LoyaltyProgramRatePopup`, `PG_TagOperation` — koddan açılan popup'lar |
+| Birden çok conversation'da geçen TASK | `PG_MerchantSecurityCheck`, `PG_PricingTrioEdit` |
+| `_auth.properties` | 15 dosyanın 14'ü **boş** — yetki tanımları doldurulmamış |
+
+### Analizi bozabilecek dört tuzak
+
+1. **`*Super.java` üretilmiş koddur** — ama boş değil. İş mantığı `Super`'siz
+   sınıftadır; **yapısal sözleşme** (alan/widget tanımları, included page'ler)
+   `Super`'dedir. İkisini karıştırma: Super'den iş kuralı çıkarma, ama
+   included page ve alan sözleşmesini oradan oku.
+2. **Include mekanizması gerçek ve iki yerde tanımlı:**
+   - HTML: `<div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">`
+   - Super: `protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()`
+   Entry'de en az `PG_ApplicationAccount` ve `PG_AdditionalInformation` bunu
+   kullanıyor. Include sayfaları `page\acq\include\...` altında, ayrı ağaçta.
+3. **Conversation'lar akış sınırını aşıyor.** `con_acqmerchantupdate.cct`
+   entry klasöründe olmayan ekranları (`PG_MerchantUpdate`,
+   `PG_MerchantProductAuthorizationsDefinition`, `PG_NewPricingTrio`,
+   `PG_MerchantPricingSponsor`) TASK olarak içeriyor. Akış grafiği entry
+   klasörüyle sınırlı değil.
+4. **İki ayrı java ağacı var.** Controller'lar `com.ykb.hmn.acq...`,
    DTO'lar `com.ykb.acq...` altında (`hmn` yok).
 
 ---
@@ -84,7 +106,7 @@ Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 [ ] 2  [PS] Envanterler (webapp + java + boyut)
 [ ] 3  [PS] Konvansiyon hammaddesi
 [ ] 4  [PS] Anahtar kelime, geçiş, state, include
-[ ] 5  [PS] Yetki, lang, DTO, dışarıdan çağrılar
+[ ] 5  [PS] Yetki, lang, DTO, dışarıdan çağrılar, eşleme, include
 [ ] 6  [PS] Özet
 [ ] 7  [CP] Envanter + konvansiyon türetme   → 00a-envanter.md
 [ ] 8  [CP] Akış grafiği (CCT tabanlı)       → 00b-akis.md
@@ -332,12 +354,41 @@ $o18 = Get-ChildItem . -Recurse -File -Include *.java,*.js,*.cct |
     ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
 Set-Content "$O\18-disaridan-cagrilar.txt" -Value (@($o18) -join "`r`n")
 
+# 19 - ekran -> conversation eslemesi (hangi ekran hangi CCT'de TASK)
+$o19 = $cctEntry | ForEach-Object {
+    $f = $_.Name
+    Select-String -LiteralPath $_.FullName -Pattern 'PageName="([^"]+)"' |
+        ForEach-Object { "{0,-45} {1}" -f $f, $_.Matches[0].Groups[1].Value }
+}
+Set-Content "$O\19-ekran-conversation.txt" -Value (@($o19) -join "`r`n")
+
+# 20 - include baglantilari. DIKKAT: baglanti URETILMIS Super dosyalarinda ve
+# HTML data-page-name attribute'unda tanimli, o yuzden Super HARIC TUTULMUYOR.
+$o20 = Get-ChildItem . -Recurse -File -Include *.java,*.js,*.html,*.cct |
+    Select-String -Pattern 'IncludedPage|PG_Include[A-Za-z0-9_]*|data-page-name' |
+    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\20-include.txt" -Value (@($o20) -join "`r`n")
+
 "14-yetki      : " + @($buf).Count
 "15-properties : " + @($buf2).Count
 "16-lang       : " + @($rows).Count
 "17-dto        : " + @($buf3).Count
 "18-disaridan  : " + @($o18).Count
+"19-ekran-conv : " + @($o19).Count
+"20-include    : " + @($o20).Count
+
+# Kontrol: TASK'i olmayan ekranlar ve klasoru olmayan TASK'lar
+$taskPages = @($o19 | ForEach-Object { ($_ -split '\s+')[-1] } | Sort-Object -Unique)
+$folders   = @(Get-ChildItem $W -Directory).Name
+"--- TASK'i olmayan ekranlar (koddan acilan popup adaylari) ---"
+$folders   | Where-Object { $_ -notin $taskPages } | ForEach-Object { "  " + $_ }
+"--- Klasoru olmayan TASK'lar (baska akisa ait ekranlar) ---"
+$taskPages | Where-Object { $_ -notin $folders }   | ForEach-Object { "  " + $_ }
 ```
+
+`13-include.txt` yerine **`20-include.txt`** kullanılacak — 13 yalnızca HTML
+tarafını yakalıyor, java bağlantısı üretilmiş `Super` dosyalarında olduğu için
+Adım 4'ün taramasının dışında kalıyor.
 
 ## [PS] Adım 6 — Özet
 
@@ -348,7 +399,7 @@ Get-ChildItem $O -Filter *.txt | Sort-Object Name | ForEach-Object {
 }
 ```
 
-18 dosya olmalı. `<< BOS` olanı **silme** — promptlar boş taramayı "TARAMA BOŞ"
+20 dosya olmalı. `<< BOS` olanı **silme** — promptlar boş taramayı "TARAMA BOŞ"
 diye işaretleyip devam edecek şekilde yazıldı.
 
 PowerShell bitti.
@@ -389,12 +440,23 @@ CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
 Geçişler burada deklaratif olarak tanımlı.
 
 ## KRİTİK KURALLAR
-1. *Super.java ÜRETİLMİŞ koddur. İş mantığını Super'siz sınıfta ara.
-   Super'i sadece widget/alan sözleşmesi için oku, iş kuralı çıkarma.
-2. Akış 14 ekrandan ibaret DEĞİL. page\acq\include\... altındaki PG_Include*
-   sayfaları akışa dahil ediliyor, başka ağaçta duruyor.
-3. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
    DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties dosyalarının 14'ü BOŞ. Bu bir tarama hatası değil,
+   olgudur — yetki tanımları doldurulmamış.
 
 ## Repolar
 FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
@@ -498,7 +560,8 @@ Yeni chat. P0 + aşağısı.
 #file:docs/entry-akis/_tarama/01-cct-entry.txt
 #file:docs/entry-akis/_tarama/10-anahtar-kelimeler.txt
 #file:docs/entry-akis/_tarama/11-gecisler.txt
-#file:docs/entry-akis/_tarama/13-include.txt
+#file:docs/entry-akis/_tarama/19-ekran-conversation.txt
+#file:docs/entry-akis/_tarama/20-include.txt
 #file:docs/entry-akis/_tarama/18-disaridan-cagrilar.txt
 
 # GÖREV
@@ -517,9 +580,15 @@ Akış grafiğini çıkar. BİRİNCİL KAYNAK CCT DOSYALARIDIR — grafiği önc
 4. DECISION düğümleri: hangi olayda, hangi koşullarla dallanıyor.
 5. KOD KARŞILIĞI: 11-gecisler.txt'de CCT'de görünmeyen programatik geçiş var mı?
    (kod içinden açılan popup/dialog). Bunları ayrı işaretle.
-6. INCLUDE: 13-include.txt — hangi ekran hangi PG_Include* sayfasını dahil
-   ediyor. Bunlar envanterdeki 14'e ek.
-7. GİRİŞ/ÇIKIŞ: 18-disaridan-cagrilar.txt ile akışa dışarıdan girişler.
+6. INCLUDE: 20-include.txt — hangi ekran hangi PG_Include* sayfasını dahil
+   ediyor. Bağlantı HTML'de data-page-name, java'da Super sınıfındaki
+   IIncludedPage<> ile kuruluyor. Bunlar envanterdeki 14'e EK sayfalardır.
+7. TASK'SIZ EKRANLAR: 19-ekran-conversation.txt'de PageName olarak geçmeyen
+   ekranlar koddan açılıyor. Bunları 11-gecisler.txt'de ara ve nereden
+   açıldıklarını bul. Bulamazsan "AÇILIŞ NOKTASI BULUNAMADI" yaz.
+8. AKIŞ DIŞI TASK'LAR: 19'da geçip entry klasöründe karşılığı olmayan
+   PageName'ler başka akışın ekranlarıdır. Grafikte ayrı renkte/notla göster.
+9. GİRİŞ/ÇIKIŞ: 18-disaridan-cagrilar.txt ile akışa dışarıdan girişler.
 
 # ÇIKTI — docs/entry-akis/00b-akis.md
 ## 1. CCT Envanteri
@@ -546,11 +615,18 @@ Dahil eden ekran | Dahil edilen sayfa | Nerede tanımlı | Kod referansı
 ## 7. Giriş ve Çıkış Noktaları
 Dışarıdan girişler (kardeş akışlar dahil), tamamlanma ve iptal sonrası
 
-## 8. Ulaşılamayan / Sahipsiz
-Envanterde olup hiçbir TASK'a bağlanmayan ekranlar; TASK'ı olup ekran dosyası
-bulunmayanlar
+## 8. Ekran ↔ Conversation Eşlemesi
+Ekran | Geçtiği CCT dosyaları | TaskID | Birden çok conversation'da mı
 
-## 9. CCT ile Kod Arasındaki Çelişkiler
+## 9. CCT Dışı Ekranlar
+TASK'ı olmayan 4 ekran: nereden, hangi kodla açılıyor, hangi parametreyle,
+kapanınca parent'a ne dönüyor
+
+## 10. Akış Dışı TASK'lar
+Entry conversation'larının çağırdığı ama entry klasöründe olmayan ekranlar —
+hangi akışa ait, neden buradan çağrılıyor
+
+## 11. CCT ile Kod Arasındaki Çelişkiler
 
 # KURAL
 Her satırın yanında kaynak referansı. İyileştirme yazma.
@@ -588,8 +664,10 @@ ekranlar; sonra derin analiz planı.
    ayıkla. Hangi metot kaç ekrandan çağrılıyor?
 3. DTO ENVANTERİ: 17-dto.txt — request/response sınıfları hangi ekranlarla
    ilişkili, alanları ne.
-4. YETKİ MODELİ: 14-yetki.txt — _auth.properties dosyaları neyi tanımlıyor,
-   ekranlar arasında tutarlı mı, yetkisi tanımsız ekran var mı.
+4. YETKİ MODELİ: 14-yetki.txt — dosyaların 14'ü BOŞ, bu bilinen bir olgu.
+   Doldurulmuş olan(lar) neyi tanımlıyor? Boş olanlar için yetki kontrolü
+   kodda mı yapılıyor, hiç mi yapılmıyor? Kodda yetki kontrolü ara ve
+   _auth.properties ile ilişkisini kur.
 5. İKİZLER: ApplicationAccount/ApplicationAccountEdit,
    ApplicationPricing/ApplicationPricingTrio, TagInquiry/TagOperation ve
    envanterden çıkan diğerleri. Yüzeysel karşılaştır: boyut, ortak metot adları,
@@ -682,6 +760,7 @@ Hata bulursan düzelt, Adım 10'u tekrarla.
 #file:docs/entry-akis/00c-plan.md
 #file:docs/entry-akis/_tarama/16-lang-keyleri.txt
 #file:docs/entry-akis/_tarama/14-yetki.txt
+#file:docs/entry-akis/_tarama/20-include.txt
 
 # BU TURUN KAPSAMI
 Grup     : <00c'deki grup no ve adı>
