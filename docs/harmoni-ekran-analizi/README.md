@@ -1,7 +1,22 @@
 # Harmoni Legacy Akış Analizi — Çalıştırma Kılavuzu
 
 Bu klasör, Harmoni legacy akışlarının uçtan uca analizi ve iyileştirme planı
-için hazırlanmış prompt setini içerir. Promptlar: [PROMPTS.md](./PROMPTS.md)
+için hazırlanmış prompt setini içerir.
+
+> ## ► Buradan başla: [RUNBOOK.md](./RUNBOOK.md)
+>
+> `entry` akışını tek geçişte bitirmek için doğrusal koşu: sırayla
+> yapıştırılacak 6 PowerShell bloğu ve 8 Copilot prompt'u, hepsi içinde.
+> Başka dosya açmana gerek yok.
+
+Diğer dosyalar:
+
+| Dosya | Ne işe yarar |
+|---|---|
+| [RUNBOOK.md](./RUNBOOK.md) | **Doğrusal koşu.** Uçtan uca tek geçiş için izlenecek yol |
+| [PROMPTS.md](./PROMPTS.md) | Referans: blokların ayrıntılı sürümü, tek ekran modu, çok büyük ekran bölme, alternatif çalıştırma yolları |
+| Bu dosya | Arka plan: tasarım gerekçeleri, ortam kurulumu, sorun giderme |
+| [scripts/](./scripts) | Ön-tarama script'leri (script çalıştırma izni olan ortamlar için) |
 
 **Hedef akış:** `cct/page/acq/entry` — 14 alt ekrandan oluşan üye işyeri başvuru
 akışı.
