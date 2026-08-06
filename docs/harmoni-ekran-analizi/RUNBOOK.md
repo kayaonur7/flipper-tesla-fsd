@@ -1,201 +1,357 @@
 # entry Akışı — Uçtan Uca Runbook
 
-Tek geçişte bitirmek için tasarlanmış doğrusal koşu. **Sırayla uygula, atlama.**
+`hmnfe_acq_merchant` reposundaki üye işyeri başvuru (entry) akışının uçtan uca
+analizi ve iyileştirme planı. Tek geçişte bitirmek için tasarlandı.
 
-- `[PS]` adımları → PowerShell'e yapıştır
+- `[PS]` adımları → PowerShell'e yapıştır (repo kökü: `D:\Repo\hmnfe_acq_merchant`)
 - `[CP]` adımları → Copilot **agent mode + Opus**, her adım **yeni chat**
 
-Toplam: 6 PowerShell bloğu + 13-16 Copilot turu.
+Toplam: 7 PowerShell bloğu + 13-16 Copilot turu.
 
-> Referans doküman: [PROMPTS.md](./PROMPTS.md) — tek ekran modu, çok büyük ekran
-> bölme stratejisi ve alternatif çalıştırma yolları orada. Bu runbook kendi
-> kendine yeterli; PROMPTS.md'yi açmana gerek yok.
+---
+
+## Doğrulanmış yapı
+
+Bu runbook aşağıdaki gerçek yapıya göre yazıldı — tahmin yok, hepsi repoda
+doğrulandı.
+
+### Bir ekranın ayak izi (örnek: `PG_ApplicationAccount`)
+
+```
+src\main\java\com\ykb\hmn\acq\application\entry\controllers\
+    PG_ApplicationAccount.java           ← geliştirici kodu
+    PG_ApplicationAccountSuper.java      ← ÜRETİLMİŞ taban sınıf
+    Con_acqapplicationaccount.java       ← conversation controller (dev)
+    Con_acqapplicationaccountSuper.java  ← ÜRETİLMİŞ
+src\main\webapp\cct\
+    con_acqapplicationaccount.cct        ← AKIŞ TANIMI (XML)
+src\main\webapp\page\acq\application\entry\PG_ApplicationAccount\
+    PG_ApplicationAccount.html
+    PG_ApplicationAccount.js
+    PG_ApplicationAccount.properties
+    PG_ApplicationAccount_auth.properties    ← YETKİ tanımı
+    PG_ApplicationAccount_lang_en.json
+    PG_ApplicationAccount_lang_tr.json
+```
+
+### Kökler
+
+| Değişken | Yol | İçerik |
+|---|---|---|
+| `$W` | `src\main\webapp\page\acq\application\entry` | 14 ekran klasörü, html/js/properties/lang |
+| `$J` | `src\main\java\com\ykb\hmn\acq\application\entry\controllers` | 50 java — PG_ ve Con_ sınıfları |
+| `$JD` | `src\main\java\com\ykb\acq\application\entry` | 6 java — request / response / util DTO'ları |
+| `$CCT` | `src\main\webapp\cct` | 79 `.cct` — akış tanımları |
+| `$INC` | `src\main\webapp\page\acq\include` | paylaşılan include sayfaları |
+
+### `.cct` formatı — akışın kaynağı
+
+```xml
+<CONVERSATION ApplicationID="app_acqadditionalinformation"
+              ConvID="con_acqadditionalinformation"
+              ConvController="...controllers.Con_acqadditionalinformation"
+              DefaultTaskID="task_additionalinformation"
+              FunctionalArea="acq/application/entry">
+  <TASK PageName="PG_AdditionalInformation"
+        PageController="...controllers.PG_AdditionalInformation"
+        TaskID="task_additionalinformation"
+        CancelButton="True" ConfirmButton="True" TabVisible="True">
+    <ACTION Event="onBack">
+      <TRANSITION InvocationMode="NORMAL" FlagEOC="True"
+                  ControllerEvent="onBack" NextConvID="" NextTaskID=""/>
+    </ACTION>
+    <DECISION Event="onSecurityClick"> ...
+```
+
+Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
+
+### Analizi bozabilecek üç tuzak
+
+1. **`*Super.java` üretilmiş koddur.** İş mantığı `Super`'siz sınıftadır.
+   Karıştırılırsa analiz üretilmiş widget binding'lerini iş kuralı sanır.
+2. **Akış 14 ekrandan ibaret değil.** `page\acq\include\...` altındaki
+   `PG_Include*` sayfaları akışa dahil ediliyor ama başka ağaçta duruyor.
+3. **İki ayrı java ağacı var.** Controller'lar `com.ykb.hmn.acq...`,
+   DTO'lar `com.ykb.acq...` altında (`hmn` yok).
+
+---
 
 ## İlerleme listesi
 
 ```
-[ ] 0  [PS] Kurulum ve kontrol
-[ ] 1  [PS] Envanter ve boyutlar
-[ ] 2  [PS] Çağrı hedefleri, import'lar, erişimciler
-[ ] 3  [PS] Anahtar kelime sayımı, geçiş ve state satırları
-[ ] 4  [PS] Dışarıdan çağrılar, metot imzaları, lang key'leri
-[ ] 5  [PS] Özet — hepsi dolu mu
-[ ] 6  [CP] Envanter + konvansiyon türetme      → 00a-envanter.md
-[ ] 7  [CP] Geçiş grafiği                       → 00b-gecis.md
-[ ] 8  [CP] State + servis + ikiz + grup planı  → 00c-plan.md
-[ ] 9  [CP] Doğrulama (00a/00b/00c)
-[ ] 10 [--] Elle spot-check
-[ ] 11 [CP] Ekran kartları — grup başına 1 tur  → ekranlar/*.md
-[ ] 12 [CP] Konsolidasyon                       → 90-konsolidasyon.md
-[ ] 13 [CP] Doğrulama (konsolidasyon)
-[ ] 14 [--] Elle spot-check
-[ ] 15 [CP] İyileştirme planı                   → 99-iyilestirme.md
+[ ] 0  [PS] Kökler ve kontrol
+[ ] 1  [PS] CCT akış tanımları
+[ ] 2  [PS] Envanterler (webapp + java + boyut)
+[ ] 3  [PS] Konvansiyon hammaddesi
+[ ] 4  [PS] Anahtar kelime, geçiş, state, include
+[ ] 5  [PS] Yetki, lang, DTO, dışarıdan çağrılar
+[ ] 6  [PS] Özet
+[ ] 7  [CP] Envanter + konvansiyon türetme   → 00a-envanter.md
+[ ] 8  [CP] Akış grafiği (CCT tabanlı)       → 00b-akis.md
+[ ] 9  [CP] State + servis + ikiz + plan     → 00c-plan.md
+[ ] 10 [CP] Doğrulama
+[ ] 11 [--] Elle spot-check
+[ ] 12 [CP] Ekran kartları — grup başına 1   → ekranlar/*.md
+[ ] 13 [CP] Konsolidasyon                    → 90-konsolidasyon.md
+[ ] 14 [CP] Doğrulama
+[ ] 15 [--] Elle spot-check
+[ ] 16 [CP] İyileştirme planı                → 99-iyilestirme.md
 ```
 
 ---
 
 # BÖLÜM 1 — PowerShell
 
-FE repo kökünde (`D:\Repo\hmnfe_acq_merchant`). Blokları **olduğu gibi**,
-sırayla yapıştır. Her blok sonunda ne yazdığını söylüyor.
+Blokları **olduğu gibi**, sırayla yapıştır. Terminal sekmesini değiştirme —
+değişkenler kaybolur. Kaybolursa Adım 0'ı tekrar çalıştır.
 
-## [PS] Adım 0 — Kurulum ve kontrol
+## [PS] Adım 0 — Kökler ve kontrol
 
 ```powershell
-$E = "cct\page\acq\entry"
-$O = "docs\entry-akis\_tarama"
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$JD  = "src\main\java\com\ykb\acq\application\entry"
+$CCT = "src\main\webapp\cct"
+$INC = "src\main\webapp\page\acq\include"
+$O   = "docs\entry-akis\_tarama"
 New-Item -ItemType Directory -Force $O, "docs\entry-akis\ekranlar" | Out-Null
-"PS surumu     : " + $PSVersionTable.PSVersion.ToString()
-"entry var mi  : " + (Test-Path $E)
-"ekran sayisi  : " + @(Get-ChildItem $E -Directory).Count
-"java sayisi   : " + @(Get-ChildItem $E -Recurse -File -Include *.java).Count
-"html sayisi   : " + @(Get-ChildItem $E -Recurse -File -Include *.html).Count
-"js sayisi     : " + @(Get-ChildItem $E -Recurse -File -Include *.js).Count
+
+"W   : {0,-6} ekran klasoru : {1}" -f (Test-Path $W),   @(Get-ChildItem $W -Directory -ErrorAction SilentlyContinue).Count
+"J   : {0,-6} java          : {1}" -f (Test-Path $J),   @(Get-ChildItem $J -File -Filter *.java -ErrorAction SilentlyContinue).Count
+"JD  : {0,-6} java          : {1}" -f (Test-Path $JD),  @(Get-ChildItem $JD -Recurse -File -Filter *.java -ErrorAction SilentlyContinue).Count
+"CCT : {0,-6} cct           : {1}" -f (Test-Path $CCT), @(Get-ChildItem $CCT -Recurse -File -Filter *.cct -ErrorAction SilentlyContinue).Count
+"INC : {0,-6} klasor        : {1}" -f (Test-Path $INC), @(Get-ChildItem $INC -Directory -Recurse -ErrorAction SilentlyContinue).Count
 ```
 
-**Beklenen:** `entry var mi : True`, `ekran sayisi : 14`.
-Ekran sayısı farklıysa `$E` yolunu düzelt, sonra devam et.
+**Beklenen:** W 14, J 50, JD 6, CCT 79. Sapma varsa devam etme.
 
-## [PS] Adım 1 — Envanter ve boyutlar
+## [PS] Adım 1 — CCT akış tanımları
+
+Akış grafiğinin kaynağı. Önce entry'ye ait olanları süz, sonra hem tam içeriği
+hem kompakt özeti yaz.
 
 ```powershell
-$inv = Get-ChildItem $E -Recurse -File -Include *.java,*.html,*.js,*.json | ForEach-Object {
+$cctAll = Get-ChildItem $CCT -Recurse -File -Filter *.cct
+$cctEntry = $cctAll | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match 'acq/application/entry' }
+"entry CCT sayisi : " + @($cctEntry).Count
+$cctEntry | ForEach-Object { "  " + $_.Name }
+
+# Tam icerik
+$buf = New-Object System.Collections.ArrayList
+foreach ($f in $cctEntry) {
+    [void]$buf.Add("===== " + (Resolve-Path -Relative $f.FullName) + " =====")
+    [void]$buf.Add((Get-Content -LiteralPath $f.FullName -Raw))
+}
+Set-Content "$O\01-cct-entry.txt" -Value (@($buf) -join "`r`n")
+
+# Kompakt yapisal ozet
+$sum = New-Object System.Collections.ArrayList
+foreach ($f in $cctEntry) {
+    [void]$sum.Add("### " + $f.Name)
+    Get-Content -LiteralPath $f.FullName | Where-Object {
+        $_ -match '<(/?)(CONVERSATION|TASK|ACTION|TRANSITION|DECISION|CONDITION)\b' -or
+        $_ -match '(PageName|PageController|ConvController|ConvID|TaskID|NextConvID|NextTaskID|Event|ControllerEvent|ApplicationID|DefaultTaskID|InvocationMode|MasterConvID|FunctionalArea)\s*='
+    } | ForEach-Object { [void]$sum.Add("  " + $_.Trim()) }
+}
+Set-Content "$O\02-cct-ozet.txt" -Value (@($sum) -join "`r`n")
+
+"01-cct-entry : " + @($buf).Count + " satir"
+"02-cct-ozet  : " + @($sum).Count + " satir"
+```
+
+**`entry CCT sayisi` 0 çıkarsa:** `FunctionalArea` değeri farklı yazılmış
+olabilir. Şunu çalıştır ve gerçek değeri gör, sonra yukarıdaki `-match`
+desenini düzeltip tekrarla:
+
+```powershell
+$cctAll | ForEach-Object { (Select-String -LiteralPath $_.FullName -Pattern 'FunctionalArea="([^"]*)"' | ForEach-Object { $_.Matches[0].Groups[1].Value }) } | Group-Object | Sort-Object Count -Descending | Select-Object -First 20 Count, Name
+```
+
+## [PS] Adım 2 — Envanterler
+
+```powershell
+# 03 - webapp dosya envanteri
+$inv = Get-ChildItem $W -Recurse -File | ForEach-Object {
     "{0,7} {1}" -f (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines, (Resolve-Path -Relative $_.FullName)
 } | Sort-Object
-Set-Content "$O\01-dosyalar.txt" -Value (@($inv) -join "`r`n")
+Set-Content "$O\03-webapp-dosyalar.txt" -Value (@($inv) -join "`r`n")
 
-$sz = Get-ChildItem $E -Directory | ForEach-Object {
-    $n = ((Get-ChildItem $_.FullName -Recurse -File | ForEach-Object { (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum
-    [PSCustomObject]@{ L = [int]$n; N = $_.Name }
-} | Sort-Object L -Descending | ForEach-Object { "{0,7} {1}" -f $_.L, $_.N }
-Set-Content "$O\02-ekran-boyutlari.txt" -Value (@($sz) -join "`r`n")
+# 04 - java envanteri, URETILMIS/DEV ve PAGE/CONV ayrimiyla
+$ji = Get-ChildItem $J -File -Filter *.java | ForEach-Object {
+    $kind = if ($_.BaseName -match 'Super$') { 'URETILMIS' } else { 'DEV' }
+    $type = if ($_.BaseName -match '^Con_') { 'CONV' } elseif ($_.BaseName -match '^PG_') { 'PAGE' } else { 'DIGER' }
+    "{0,7} {1,-10} {2,-6} {3}" -f (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines, $kind, $type, $_.Name
+} | Sort-Object { ($_ -split '\s+')[-1] }
+Set-Content "$O\04-java-envanter.txt" -Value (@($ji) -join "`r`n")
 
-"01-dosyalar        : " + @($inv).Count + " satir"
-"02-ekran-boyutlari : " + @($sz).Count + " satir"
+# 05 - ekran boyutlari: webapp + eslesen java birlikte
+$sz = Get-ChildItem $W -Directory | ForEach-Object {
+    $n = $_.Name
+    $wl = ((Get-ChildItem $_.FullName -Recurse -File | ForEach-Object { (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum
+    $jl = ((Get-ChildItem $J -File -Filter "$n*.java" -ErrorAction SilentlyContinue | ForEach-Object { (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines }) | Measure-Object -Sum).Sum
+    [PSCustomObject]@{ T = [int]$wl + [int]$jl; W = [int]$wl; J = [int]$jl; N = $n }
+} | Sort-Object T -Descending | ForEach-Object { "{0,7} (web {1,6} / java {2,6})  {3}" -f $_.T, $_.W, $_.J, $_.N }
+Set-Content "$O\05-ekran-boyutlari.txt" -Value (@($sz) -join "`r`n")
+
+"03-webapp-dosyalar : " + @($inv).Count
+"04-java-envanter   : " + @($ji).Count
+"05-ekran-boyutlari : " + @($sz).Count
 ```
 
-## [PS] Adım 2 — Çağrı hedefleri, import'lar, erişimciler
+## [PS] Adım 3 — Konvansiyon hammaddesi
 
-Bu blok desen tahmin etmiyor; kodun kendi idiomlarını döküyor.
+Desen tahmin etmiyoruz; kodun kendi idiomlarını döküyoruz. **Sadece DEV
+sınıfları** taranıyor — üretilmiş `Super` dosyaları istatistiği bozar.
 
 ```powershell
-# 03 - en cok cagrilan nesneler (servis adlandirmasi buradan cikacak)
+$devJava = Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' }
+$jsFiles = Get-ChildItem $W -Recurse -File -Filter *.js
+$srcAll  = @($devJava) + @($jsFiles)
+
+# 06 - en cok cagrilan nesneler (servis adlandirmasi buradan cikacak)
 $rx = [regex]'([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*[a-z][A-Za-z0-9_]*\s*\('
 $h = New-Object System.Collections.ArrayList
-Get-ChildItem $E -Recurse -File -Include *.java,*.js | ForEach-Object {
-    $t = Get-Content -LiteralPath $_.FullName -Raw
+foreach ($f in $srcAll) {
+    $t = Get-Content -LiteralPath $f.FullName -Raw
     if ($t) { foreach ($m in $rx.Matches($t)) { [void]$h.Add($m.Groups[1].Value) } }
 }
-$o3 = $h | Group-Object | Sort-Object Count -Descending | ForEach-Object { "{0,6} {1}" -f $_.Count, $_.Name }
-Set-Content "$O\03-cagri-hedefleri.txt" -Value (@($o3) -join "`r`n")
+$o6 = $h | Group-Object | Sort-Object Count -Descending | ForEach-Object { "{0,6} {1}" -f $_.Count, $_.Name }
+Set-Content "$O\06-cagri-hedefleri.txt" -Value (@($o6) -join "`r`n")
 
-# 04 - import satirlari
-$o4 = Get-ChildItem $E -Recurse -File -Include *.java | Select-String '^\s*import\s' |
+# 07 - import satirlari
+$o7 = $devJava | Select-String '^\s*import\s' |
     ForEach-Object { $_.Line.Trim() -replace '^import\s+(static\s+)?','' -replace ';\s*$','' } |
     Group-Object | Sort-Object Count -Descending | ForEach-Object { "{0,6} {1}" -f $_.Count, $_.Name }
-Set-Content "$O\04-importlar.txt" -Value (@($o4) -join "`r`n")
+Set-Content "$O\07-importlar.txt" -Value (@($o7) -join "`r`n")
 
-# 05 - erisimci metotlar (state tasima buradan cikacak)
+# 08 - erisimci metotlar (state tasima buradan cikacak)
 $rx = [regex]'\b(?:get|set|put|add|read|write|load|save|fetch|clear)[A-Z][A-Za-z0-9_]*(?=\s*\()'
 $h = New-Object System.Collections.ArrayList
-Get-ChildItem $E -Recurse -File -Include *.java,*.js | ForEach-Object {
-    $t = Get-Content -LiteralPath $_.FullName -Raw
+foreach ($f in $srcAll) {
+    $t = Get-Content -LiteralPath $f.FullName -Raw
     if ($t) { foreach ($m in $rx.Matches($t)) { [void]$h.Add($m.Value) } }
 }
-$o5 = $h | Group-Object | Sort-Object Count -Descending | ForEach-Object { "{0,6} {1}" -f $_.Count, $_.Name }
-Set-Content "$O\05-erisimciler.txt" -Value (@($o5) -join "`r`n")
+$o8 = $h | Group-Object | Sort-Object Count -Descending | ForEach-Object { "{0,6} {1}" -f $_.Count, $_.Name }
+Set-Content "$O\08-erisimciler.txt" -Value (@($o8) -join "`r`n")
 
-"03-cagri-hedefleri : " + @($o3).Count + " farkli hedef"
-"04-importlar       : " + @($o4).Count + " farkli import"
-"05-erisimciler     : " + @($o5).Count + " farkli metot"
+# 09 - DEV siniflarindaki metot imzalari (yasam dongusu buradan cikacak)
+$o9 = $devJava | Select-String -Pattern '^\s*(public|protected|private)\s+[\w<>\[\],\s]+\s+\w+\s*\(' |
+    ForEach-Object { "{0}:{1}:{2}" -f $_.Filename, $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\09-metot-imzalari.txt" -Value (@($o9) -join "`r`n")
+
+"06-cagri-hedefleri : " + @($o6).Count + " farkli hedef"
+"07-importlar       : " + @($o7).Count + " farkli import"
+"08-erisimciler     : " + @($o8).Count + " farkli metot"
+"09-metot-imzalari  : " + @($o9).Count + " imza"
 ```
 
-## [PS] Adım 3 — Anahtar kelime sayımı, geçiş ve state satırları
+## [PS] Adım 4 — Anahtar kelime, geçiş, state, include
 
-Önce sayım yapılıyor, sonra **yalnızca gerçekten geçen** kelimelerin satırları
-dökülüyor. Böylece boş desen sorunu kendiliğinden çözülüyor.
+Önce sayım, sonra **yalnızca gerçekten geçen** kelimelerin satırları.
 
 ```powershell
-$navKw   = 'startNewProcess','showCustomMessageBox','fireEvent','CCT','openDialog','closeDialog','showDialog','showPopup','openPopup','navigate','goPage','openPage','callPage','redirect','forward','closePage','back'
-$stateKw = 'setPageData','getPageData','getProcessData','setProcessData','processContext','session','getAttribute','setAttribute','globalMap','sharedModel','getContext','putValue','getValue','getModel','setModel'
-$files = Get-ChildItem $E -Recurse -File
+$scan = @($devJava) + @($jsFiles) + @(Get-ChildItem $W -Recurse -File -Filter *.html)
+
+$navKw   = 'startNewProcess','showCustomMessageBox','fireEvent','openDialog','closeDialog','showDialog','showPopup','openPopup','navigate','goPage','openPage','callPage','redirect','forward','closePage','onBack','onConfirm','onCancel','startConversation','callConversation'
+$stateKw = 'setPageData','getPageData','getProcessData','setProcessData','processContext','getConvData','setConvData','session','getAttribute','setAttribute','globalMap','sharedModel','getContext','putValue','getValue','getModel','setModel','getRequest','getResponse'
 
 $cnt = foreach ($k in ($navKw + $stateKw)) {
-    [PSCustomObject]@{ K = $k; N = @($files | Select-String -SimpleMatch $k).Count }
+    [PSCustomObject]@{ K = $k; N = @($scan | Select-String -SimpleMatch $k).Count }
 }
-Set-Content "$O\06-anahtar-kelimeler.txt" -Value ((@($cnt | Sort-Object N -Descending | ForEach-Object { "{0,6} {1}" -f $_.N, $_.K })) -join "`r`n")
+Set-Content "$O\10-anahtar-kelimeler.txt" -Value ((@($cnt | Sort-Object N -Descending | ForEach-Object { "{0,6} {1}" -f $_.N, $_.K })) -join "`r`n")
 
 $liveNav = @($cnt | Where-Object { $_.K -in $navKw -and $_.N -gt 0 }).K
 if ($liveNav) {
-    $o7 = $files | Select-String -Pattern (($liveNav | ForEach-Object { [regex]::Escape($_) }) -join '|') |
+    $o11 = $scan | Select-String -Pattern (($liveNav | ForEach-Object { [regex]::Escape($_) }) -join '|') |
         ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
-} else { $o7 = @() }
-Set-Content "$O\07-gecisler.txt" -Value (@($o7) -join "`r`n")
+} else { $o11 = @() }
+Set-Content "$O\11-gecisler.txt" -Value (@($o11) -join "`r`n")
 
 $liveState = @($cnt | Where-Object { $_.K -in $stateKw -and $_.N -gt 0 }).K
 if ($liveState) {
-    $o8 = $files | Select-String -Pattern (($liveState | ForEach-Object { [regex]::Escape($_) }) -join '|') |
+    $o12 = $scan | Select-String -Pattern (($liveState | ForEach-Object { [regex]::Escape($_) }) -join '|') |
         ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
-} else { $o8 = @() }
-Set-Content "$O\08-state.txt" -Value (@($o8) -join "`r`n")
+} else { $o12 = @() }
+Set-Content "$O\12-state.txt" -Value (@($o12) -join "`r`n")
 
-"Gecen nav kelimeleri   : " + ($liveNav -join ', ')
-"Gecen state kelimeleri : " + ($liveState -join ', ')
-"07-gecisler : " + @($o7).Count + " satir"
-"08-state    : " + @($o8).Count + " satir"
+# 13 - include kullanimi: akisa disaridan dahil edilen sayfalar
+$o13 = $scan | Select-String -Pattern 'PG_Include[A-Za-z0-9_]*|[Ii]nclude\s*\(|includePage|IncludeArea' |
+    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\13-include.txt" -Value (@($o13) -join "`r`n")
+
+"Gecen nav   : " + ($liveNav -join ', ')
+"Gecen state : " + ($liveState -join ', ')
+"11-gecisler : " + @($o11).Count
+"12-state    : " + @($o12).Count
+"13-include  : " + @($o13).Count
 ```
 
-**`Gecen state kelimeleri` boş çıkarsa panik yok** — Adım 6'daki prompt
-`05-erisimciler.txt` üzerinden gerçek state mekanizmasını bulacak ve Adım 8
-onu kullanacak.
-
-## [PS] Adım 4 — Dışarıdan çağrılar, metot imzaları, lang key'leri
+## [PS] Adım 5 — Yetki, lang, DTO, dışarıdan çağrılar
 
 ```powershell
-# 09 - kardes akislardan entry ekranlarina yapilan cagrilar
-$names = (Get-ChildItem $E -Directory).Name
-$rxN = ($names | ForEach-Object { [regex]::Escape($_) }) -join '|'
-$o9 = Get-ChildItem (Split-Path $E) -Recurse -File -Include *.java,*.js |
-    Where-Object { $_.FullName -notmatch '[\\/]entry[\\/]' } |
-    Select-String -Pattern $rxN |
-    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
-Set-Content "$O\09-disaridan-cagrilar.txt" -Value (@($o9) -join "`r`n")
+# 14 - yetki tanimlari (_auth.properties)
+$buf = New-Object System.Collections.ArrayList
+Get-ChildItem $W -Recurse -File -Filter *_auth.properties | ForEach-Object {
+    [void]$buf.Add("===== " + (Resolve-Path -Relative $_.FullName) + " =====")
+    Get-Content -LiteralPath $_.FullName | ForEach-Object { [void]$buf.Add($_) }
+}
+Set-Content "$O\14-yetki.txt" -Value (@($buf) -join "`r`n")
 
-# 10 - PG_ siniflarindaki metot imzalari (yasam dongusu buradan cikacak)
-$o10 = Get-ChildItem $E -Recurse -File -Include *.java |
-    Select-String -Pattern '^\s*(public|protected|private)\s+[\w<>\[\],\s]+\s+\w+\s*\(' |
-    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
-Set-Content "$O\10-metot-imzalari.txt" -Value (@($o10) -join "`r`n")
+# 15 - sayfa properties (auth disindakiler)
+$buf2 = New-Object System.Collections.ArrayList
+Get-ChildItem $W -Recurse -File -Filter *.properties | Where-Object { $_.Name -notmatch '_auth\.properties$' } | ForEach-Object {
+    [void]$buf2.Add("===== " + (Resolve-Path -Relative $_.FullName) + " =====")
+    Get-Content -LiteralPath $_.FullName | ForEach-Object { [void]$buf2.Add($_) }
+}
+Set-Content "$O\15-properties.txt" -Value (@($buf2) -join "`r`n")
 
-# 11 - lang key'leri (dosya + key)
+# 16 - lang key'leri
 $rxL = [regex]'"([^"]+)"\s*:'
 $rows = New-Object System.Collections.ArrayList
-Get-ChildItem $E -Recurse -File -Filter *.json | ForEach-Object {
+Get-ChildItem $W -Recurse -File -Filter *_lang_*.json | ForEach-Object {
     $p = (Resolve-Path -Relative $_.FullName)
     $t = Get-Content -LiteralPath $_.FullName -Raw
     if ($t) { foreach ($m in $rxL.Matches($t)) { [void]$rows.Add("$p`t$($m.Groups[1].Value)") } }
 }
-Set-Content "$O\11-lang-keyleri.txt" -Value (@($rows) -join "`r`n")
+Set-Content "$O\16-lang-keyleri.txt" -Value (@($rows) -join "`r`n")
 
-"09-disaridan-cagrilar : " + @($o9).Count + " satir"
-"10-metot-imzalari     : " + @($o10).Count + " satir"
-"11-lang-keyleri       : " + @($rows).Count + " satir"
+# 17 - DTO'lar (request / response / util) - alan ve metot satirlari
+$buf3 = New-Object System.Collections.ArrayList
+Get-ChildItem $JD -Recurse -File -Filter *.java | ForEach-Object {
+    [void]$buf3.Add("===== " + (Resolve-Path -Relative $_.FullName) + " =====")
+    Get-Content -LiteralPath $_.FullName | Where-Object { $_ -match '^\s*(public|private|protected|@)' } | ForEach-Object { [void]$buf3.Add("  " + $_.Trim()) }
+}
+Set-Content "$O\17-dto.txt" -Value (@($buf3) -join "`r`n")
+
+# 18 - akisa DISARIDAN yapilan cagrilar
+$names = @(Get-ChildItem $W -Directory).Name + @(Get-ChildItem $J -File -Filter Con_*.java | ForEach-Object { $_.BaseName -replace 'Super$','' })
+$rxN = (($names | Sort-Object -Unique) | ForEach-Object { [regex]::Escape($_) }) -join '|'
+$o18 = Get-ChildItem . -Recurse -File -Include *.java,*.js,*.cct |
+    Where-Object { $_.FullName -notmatch 'application[\\/]entry' } |
+    Select-String -Pattern $rxN |
+    ForEach-Object { "{0}:{1}:{2}" -f (Resolve-Path -Relative $_.Path), $_.LineNumber, $_.Line.Trim() }
+Set-Content "$O\18-disaridan-cagrilar.txt" -Value (@($o18) -join "`r`n")
+
+"14-yetki      : " + @($buf).Count
+"15-properties : " + @($buf2).Count
+"16-lang       : " + @($rows).Count
+"17-dto        : " + @($buf3).Count
+"18-disaridan  : " + @($o18).Count
 ```
 
-## [PS] Adım 5 — Özet
+## [PS] Adım 6 — Özet
 
 ```powershell
 Get-ChildItem $O -Filter *.txt | Sort-Object Name | ForEach-Object {
     $n = @(Get-Content -LiteralPath $_.FullName).Count
-    if ($n -le 1) { "{0,-26} {1,6}  << BOS" -f $_.Name, $n } else { "{0,-26} {1,6}" -f $_.Name, $n }
+    if ($n -le 1) { "{0,-26} {1,7}  << BOS" -f $_.Name, $n } else { "{0,-26} {1,7}" -f $_.Name, $n }
 }
 ```
 
-11 dosyanın hepsi listede olmalı. `<< BOS` işaretli varsa **silme, öylece
-bırak** — promptlar boş taramayı "TARAMA BOŞ" diye işaretleyip devam edecek
-şekilde yazıldı.
+18 dosya olmalı. `<< BOS` olanı **silme** — promptlar boş taramayı "TARAMA BOŞ"
+diye işaretleyip devam edecek şekilde yazıldı.
 
-PowerShell işi bitti. Bundan sonrası Copilot.
+PowerShell bitti.
 
 ---
 
@@ -203,314 +359,372 @@ PowerShell işi bitti. Bundan sonrası Copilot.
 
 ## Sabit başlık (P0)
 
-**Her `[CP]` prompt'unun en başına bunu yapıştır.** Kısa tutuldu, context
-yemiyor.
+**Her `[CP]` prompt'unun başına yapıştır.**
 
 ```
 # HARMONİ — TEMEL
 Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
-konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka PG_*
-ekranlarından türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
 Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
 
-Ekran = klasör: PG_<X>.java (controller) + <x>.html (widget) + <x>.js
-        + _lang_tr.json / _lang_en.json
-FE repo: hmnfe_acq_merchant   BE repo: hmn_acq_merchant
-  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
-Bilinen mekanizmalar: startNewProcess, CCT, dialog, showCustomMessageBox
-  (bloklayıcı), fireEvent, HopeReportGenerator (server-side Excel + reportId)
-Jackson 2.9.6.
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       yetki tanımı
+    PG_X_lang_en.json / PG_X_lang_tr.json
 
-KAPSAM: cct/page/acq/entry — üye işyeri başvuru akışı, 14 alt ekran.
-Kardeş akışlar (kapsam dışı ama bağımlılık olabilir): annulment, application,
-branchopening, inquiry.
-ACQ = Acquiring / üye işyeri (kartlı ödeme kabul tarafı).
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur. İş mantığını Super'siz sınıfta ara.
+   Super'i sadece widget/alan sözleşmesi için oku, iş kuralı çıkarma.
+2. Akış 14 ekrandan ibaret DEĞİL. page\acq\include\... altındaki PG_Include*
+   sayfaları akışa dahil ediliyor, başka ağaçta duruyor.
+3. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
 
 # ÇALIŞMA DİSİPLİNİ
 - docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
   dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
 - Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
 - Aynı dosyayı iki kez okuma.
-- Sohbette özet/açıklama yapma; doğrudan hedef dosyaya yaz, sonunda tek
-  paragraf durum bildir.
-- Bir tarama dosyası boşsa ilgili bölüme "TARAMA BOŞ — mekanizma kullanılmıyor
-  veya farklı adlandırılmış" yaz. Boşluğu tahminle doldurma.
-- Tur kesilirse hedef dosyanın mevcut halini oku ve KALDIĞIN YERDEN devam et.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
 - Türkçe yaz, teknik terimleri İngilizce bırak.
 ```
 
 ---
 
-## [CP] Adım 6 — Envanter + konvansiyon türetme
+## [CP] Adım 7 — Envanter + konvansiyon türetme
 
 Yeni chat. P0 + aşağısı.
 
 ```
 # GİRDİ
-#file:docs/entry-akis/_tarama/01-dosyalar.txt
-#file:docs/entry-akis/_tarama/02-ekran-boyutlari.txt
-#file:docs/entry-akis/_tarama/03-cagri-hedefleri.txt
-#file:docs/entry-akis/_tarama/04-importlar.txt
-#file:docs/entry-akis/_tarama/10-metot-imzalari.txt
+#file:docs/entry-akis/_tarama/03-webapp-dosyalar.txt
+#file:docs/entry-akis/_tarama/04-java-envanter.txt
+#file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
+#file:docs/entry-akis/_tarama/06-cagri-hedefleri.txt
+#file:docs/entry-akis/_tarama/07-importlar.txt
+#file:docs/entry-akis/_tarama/09-metot-imzalari.txt
 
 # GÖREV
-İki şey: (a) ekran envanteri, (b) bu kod tabanının KONVANSİYONLARINI türet.
+(a) Ekran envanteri, (b) bu kod tabanının KONVANSİYONLARINI türet.
 (b) sonraki tüm turların temeli — özenli ol.
 
 # YÖNTEM
-1. Envanter: her PG_* klasörünü ve dosyalarını tabloya dök, eksik dosyaları
-   işaretle.
-2. Sınıflandır: adım sayfası / modal popup / yardımcı görünüm / arama ekranı.
-   İsim soneki tek başına gerekçe değil — 10-metot-imzalari ve gerekiyorsa
-   .java dosyasının ilk 60 satırından kanıt bul.
-3. YAŞAM DÖNGÜSÜ KONVANSİYONU: 10-metot-imzalari.txt'de birden çok PG_
-   sınıfında TEKRAR EDEN metot adlarını bul. Bunlar framework tarafından
-   çağrılan yaşam döngüsü metotlarıdır. Sırasını ve amacını türet.
-4. SERVİS KONVANSİYONU: 03-cagri-hedefleri + 04-importlar. Servis benzeri
-   isimler hangi sonekle bitiyor (Intf / Service / Manager / Facade /
-   Delegate / başka)? Servis çağrısının kodda tam olarak nasıl göründüğünü yaz.
-5. STATE KONVANSİYONU: 03 ve 04'te ekranlar arası veri taşımaya aday ne var?
-   (context, model, process, holder, cache, map benzeri isimler)
-6. Kodda göremediğini yazma.
+1. Envanter: her ekran için webapp 6'lısı ve java karşılıkları (PG_, PG_Super,
+   Con_, Con_Super) eşleşiyor mu? Eksik/fazla olanları işaretle.
+2. Sınıflandır: adım sayfası / modal popup / include (paylaşılan) / yardımcı.
+   Kanıt: 09-metot-imzalari ve gerekirse .java ilk 60 satırı. İsim soneki tek
+   başına gerekçe değil.
+3. SUPER vs DEV: 04-java-envanter'e bak. Super dosyaları ortalama kaç satır,
+   dev dosyaları kaç? Dev sınıfların Super'den ne devraldığını bir örnekten
+   türet (bir PG_X.java + PG_XSuper.java çiftini aç).
+4. CON_ SINIFLARININ ROLÜ: Con_acqX conversation controller ne yapıyor?
+   PG_ ile ilişkisi ne? Bir örnekten türet.
+5. YAŞAM DÖNGÜSÜ: 09-metot-imzalari'nda birden çok DEV sınıfında TEKRAR EDEN
+   metot adlarını bul — bunlar framework'ün çağırdığı yaşam döngüsü metotları.
+   Sırasını ve amacını türet.
+6. SERVİS KONVANSİYONU: 06 + 07. Servis benzeri isimler hangi sonekle bitiyor?
+   Servis çağrısı kodda tam olarak nasıl görünüyor?
+7. STATE KONVANSİYONU: 06 ve 07'de ekranlar arası veri taşımaya aday ne var?
 
 # ÇIKTI — docs/entry-akis/00a-envanter.md
 ## 1. Ekran Envanteri
-Ekran | Tip | Sınıflandırma gerekçesi | java | html | js | lang key | Eksik dosya | Bir cümlelik rol
+Ekran | Tip | Gerekçe | PG_ satır | Super satır | Con_ var mı | html | js |
+lang key | Eksik dosya | Bir cümlelik rol
 
 ## 2. Türetilen Konvansiyonlar
+### Super / Dev ayrımı
+Super'de ne var, dev sınıfta ne var, örnek çiftten kanıt
+### Con_ conversation controller'ın rolü
 ### Yaşam döngüsü metotları
-Metot | Kaç PG_ sınıfında var | Türetilen amaç | Kanıt (dosya:satır)
+Metot | Kaç DEV sınıfında | Türetilen amaç | Kanıt (dosya:satır)
 ### Servis çağrısı deseni
-Kodda nasıl görünüyor, hangi sonek, örnek satır
+Sonek, kodda görünümü, örnek satır
 ### State taşıma adayları
 Aday | Neden aday | Kanıt
 ### Sonraki turlar için ARAMA DESENLERİ
-Servis çağrısı, state erişimi ve olay tetikleme için kullanılacak somut
-desenler — Adım 7 ve 8 bunları kullanacak
+Servis çağrısı, state erişimi, olay tetikleme için somut desenler
 
 ## 3. Boyut Dağılımı
-En büyük 5 ekran
+En büyük 5 ekran (web + java ayrı)
 
 ## 4. Anomaliler
-Eksik dosya, isim konvansiyonu dışına çıkanlar, beklenmedik ek dosyalar
+Eksik dosya, Super'i olmayan PG_, PG_'si olmayan Super, isim konvansiyonu
+dışına çıkanlar
 
 # KURAL
-Geçiş grafiği, state sözlüğü ve validasyon analizine GİRME — sonraki turlarda.
-İyileştirme önerisi yazma.
+Akış grafiği, state sözlüğü, validasyon analizine GİRME. İyileştirme yazma.
 ```
 
-**Kontrol:** "Türetilen Konvansiyonlar" bölümü dolu mu? Boşsa bu turu tekrarla —
-sonraki iki tur buna dayanıyor.
+**Kontrol:** "Türetilen Konvansiyonlar" dolu mu? Boşsa turu tekrarla.
 
 ---
 
-## [CP] Adım 7 — Geçiş grafiği
+## [CP] Adım 8 — Akış grafiği (CCT tabanlı)
 
 Yeni chat. P0 + aşağısı.
 
 ```
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
-#file:docs/entry-akis/_tarama/06-anahtar-kelimeler.txt
-#file:docs/entry-akis/_tarama/07-gecisler.txt
-#file:docs/entry-akis/_tarama/09-disaridan-cagrilar.txt
+#file:docs/entry-akis/_tarama/02-cct-ozet.txt
+#file:docs/entry-akis/_tarama/01-cct-entry.txt
+#file:docs/entry-akis/_tarama/10-anahtar-kelimeler.txt
+#file:docs/entry-akis/_tarama/11-gecisler.txt
+#file:docs/entry-akis/_tarama/13-include.txt
+#file:docs/entry-akis/_tarama/18-disaridan-cagrilar.txt
 
 # GÖREV
-Ekranlar arası geçiş grafiğini ve akışın giriş/çıkış noktalarını çıkar.
-State ve servis analizine GİRME — sonraki tur.
+Akış grafiğini çıkar. BİRİNCİL KAYNAK CCT DOSYALARIDIR — grafiği önce
+02-cct-ozet ve 01-cct-entry üzerinden kur, sonra 11-gecisler ile doğrula.
+İkisi çelişirse CCT'yi esas al ve ÇELİŞKİ olarak işaretle.
 
 # YÖNTEM
-1. 06-anahtar-kelimeler.txt'ye bak: hangi navigasyon mekanizmaları gerçekten
-   kullanılıyor? Sayısı 0 olanları yok say.
-2. 07-gecisler.txt'deki her satırı incele: kim çağırıyor, hangi ekranı açıyor,
-   hangi koşulla, hangi parametreyi taşıyarak. Hedef satırdan anlaşılmıyorsa
-   SADECE o dosyanın ilgili bölümünü aç.
-3. Geri dönüş yolları: modal kapanınca / adım tamamlanınca parent'a nasıl
-   dönülüyor, dönüş değeri var mı.
-4. 09-disaridan-cagrilar.txt ile akışa dışarıdan girişleri belirle.
-5. Akış tamamlanınca ve iptal edilince nereye gidiliyor.
+1. CCT ENVANTERİ: her .cct için ConvID, ConvController, DefaultTaskID,
+   ApplicationID, kaç TASK içeriyor.
+2. TASK HARİTASI: her TASK için PageName, PageController, TaskID,
+   CancelButton/ConfirmButton/TabVisible/TabEnabled.
+3. GEÇİŞLER: her ACTION/TRANSITION için Event, ControllerEvent, NextConvID,
+   NextTaskID, InvocationMode, FlagEOC. NextConvID boşsa ne anlama geliyor —
+   bir örnekten türet.
+4. DECISION düğümleri: hangi olayda, hangi koşullarla dallanıyor.
+5. KOD KARŞILIĞI: 11-gecisler.txt'de CCT'de görünmeyen programatik geçiş var mı?
+   (kod içinden açılan popup/dialog). Bunları ayrı işaretle.
+6. INCLUDE: 13-include.txt — hangi ekran hangi PG_Include* sayfasını dahil
+   ediyor. Bunlar envanterdeki 14'e ek.
+7. GİRİŞ/ÇIKIŞ: 18-disaridan-cagrilar.txt ile akışa dışarıdan girişler.
 
-# ÇIKTI — docs/entry-akis/00b-gecis.md
-## 1. Kullanılan Navigasyon Mekanizmaları
-Mekanizma | Kaç kez | Ne için kullanılıyor | Örnek (dosya:satır)
+# ÇIKTI — docs/entry-akis/00b-akis.md
+## 1. CCT Envanteri
+Dosya | ConvID | ConvController | DefaultTaskID | TASK sayısı | Kapsadığı ekranlar
 
-## 2. Geçiş Grafiği
-Mermaid flowchart. Düğüm = ekran, ok = geçiş. Ok etiketi: tetikleyici +
-taşınan parametre. Modal'ları farklı şekille göster.
+## 2. Akış Grafiği
+Mermaid flowchart. Düğüm = TASK/ekran, ok = TRANSITION.
+Ok etiketi: Event → ControllerEvent. DECISION'ları karar şekliyle,
+modal/popup'ları farklı şekille, include'ları kesikli çerçeveyle göster.
 
 ## 3. Geçiş Tablosu
-Kaynak | Hedef | Mekanizma | Koşul | Taşınan parametre | Dönüş değeri | Kod referansı
+Kaynak TASK | Event | ControllerEvent | NextConvID | NextTaskID |
+InvocationMode | FlagEOC | Kaynak dosya:satır
 
-## 4. Giriş ve Çıkış Noktaları
-Dışarıdan girişler (kardeş akışlar dahil), ön koşullar, tamamlanma ve iptal
-sonrası nereye gidildiği
+## 4. Karar Noktaları
+DECISION | Olay | Koşullar | Dallar | Kaynak
 
-## 5. Ulaşılamayan Ekranlar
-Envanterde olup hiçbir geçişle açılmayan ekranlar — ölü ekran şüphesi
+## 5. Kod İçinden Geçişler
+CCT'de tanımlı olmayan, koddan tetiklenen açılışlar
+
+## 6. Include Haritası
+Dahil eden ekran | Dahil edilen sayfa | Nerede tanımlı | Kod referansı
+
+## 7. Giriş ve Çıkış Noktaları
+Dışarıdan girişler (kardeş akışlar dahil), tamamlanma ve iptal sonrası
+
+## 8. Ulaşılamayan / Sahipsiz
+Envanterde olup hiçbir TASK'a bağlanmayan ekranlar; TASK'ı olup ekran dosyası
+bulunmayanlar
+
+## 9. CCT ile Kod Arasındaki Çelişkiler
 
 # KURAL
-Her geçişin yanında dosya:satır. İyileştirme önerisi yazma.
+Her satırın yanında kaynak referansı. İyileştirme yazma.
 ```
 
 ---
 
-## [CP] Adım 8 — State, servis, ikizler ve grup planı
+## [CP] Adım 9 — State, servis, ikizler ve grup planı
 
-Yeni chat. P0 + aşağısı. **Bu turun çıktısı sonraki her şeyin girdisi.**
+Yeni chat. P0 + aşağısı. **Sonraki her şeyin girdisi.**
 
 ```
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
-#file:docs/entry-akis/00b-gecis.md
-#file:docs/entry-akis/_tarama/03-cagri-hedefleri.txt
-#file:docs/entry-akis/_tarama/05-erisimciler.txt
-#file:docs/entry-akis/_tarama/08-state.txt
-#file:docs/entry-akis/_tarama/02-ekran-boyutlari.txt
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/_tarama/06-cagri-hedefleri.txt
+#file:docs/entry-akis/_tarama/08-erisimciler.txt
+#file:docs/entry-akis/_tarama/12-state.txt
+#file:docs/entry-akis/_tarama/17-dto.txt
+#file:docs/entry-akis/_tarama/14-yetki.txt
+#file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
 
 # GÖREV
-Paylaşılan state'i, servis kesişimini ve ikiz ekranları çıkar; sonra derin
-analiz planını üret.
+Paylaşılan state, servis kesişimi, DTO envanteri, yetki modeli ve ikiz
+ekranlar; sonra derin analiz planı.
 
 # YÖNTEM
 1. PAYLAŞILAN STATE — en kritik adım.
-   00a'daki "State taşıma adayları" ve 05-erisimciler.txt'yi kullan.
-   08-state.txt boşsa mekanizma farklı adlandırılmış demektir; 05'teki
-   erişimcilerden doğru olanı seç ve kodda doğrula.
-   Adımlar arası taşınan her veri için: nerede saklanıyor, hangi ekranda
-   YAZILIYOR, hangi ekranda OKUNUYOR. 00b'deki "taşınan parametre" sütunuyla
-   çapraz kontrol et.
-2. SERVİS KESİŞİMİ: 00a'daki servis konvansiyonunu kullanarak 03'ten servis
-   çağrılarını ayıkla. Hangi metot kaç farklı ekrandan çağrılıyor?
-3. İKİZLER: ApplicationAccount/ApplicationAccountEdit,
+   00a'daki "State taşıma adayları" + 08-erisimciler + 12-state.
+   12-state boşsa mekanizma farklı adlandırılmış; 08'den doğru olanı seç ve
+   kodda doğrula. CCT'deki ConvID/TaskID zincirinin state taşımadaki rolünü de
+   değerlendir.
+   Her veri için: nerede saklanıyor, hangi ekran YAZIYOR, hangi ekran OKUYOR.
+2. SERVİS KESİŞİMİ: 00a'daki servis konvansiyonuyla 06'dan servis çağrılarını
+   ayıkla. Hangi metot kaç ekrandan çağrılıyor?
+3. DTO ENVANTERİ: 17-dto.txt — request/response sınıfları hangi ekranlarla
+   ilişkili, alanları ne.
+4. YETKİ MODELİ: 14-yetki.txt — _auth.properties dosyaları neyi tanımlıyor,
+   ekranlar arasında tutarlı mı, yetkisi tanımsız ekran var mı.
+5. İKİZLER: ApplicationAccount/ApplicationAccountEdit,
    ApplicationPricing/ApplicationPricingTrio, TagInquiry/TagOperation ve
-   envanterden çıkan diğer benzerler. Yüzeysel karşılaştır — boyut, ortak
-   metot adları, ortak lang key'leri. "Kopya şüphesi VAR/YOK/İNCELENMELİ".
-4. GRUP PLANI: 14 ekranı 6-8 gruba indir.
+   envanterden çıkan diğerleri. Yüzeysel karşılaştır: boyut, ortak metot adları,
+   ortak lang key'leri, ortak DTO. "Kopya şüphesi VAR/YOK/İNCELENMELİ".
+6. GRUP PLANI: ekranları (include'lar dahil) 6-8 gruba indir.
 
 # ÇIKTI — docs/entry-akis/00c-plan.md
 ## 1. Paylaşılan State Sözlüğü
-Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip | Akış sonunda ne oluyor
+Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip | Akış sonu
 Ayrıca: yazılıp hiç okunmayanlar; okunup hiç yazılmayanlar
 
 ## 2. Servis Paylaşım Matrisi
 Servis metodu | Çağıran ekranlar | Çağrı sayısı | Aynı parametrelerle mi
 
-## 3. İkiz / Varyant Adayları
+## 3. DTO Envanteri
+DTO | Paket | İlişkili ekranlar | Alan sayısı | Notlar
+
+## 4. Yetki Modeli
+Ekran | _auth.properties içeriği | Tanımlı mı | Tutarsızlık
+
+## 5. İkiz / Varyant Adayları
 Ekran A | Ekran B | Benzerlik kanıtı | Kopya şüphesi
 
-## 4. DERİN ANALİZ PLANI
-Her grup için: grup adı | ekranlar | neden birlikte (ortak state / ikiz /
-ardışık adım) | derinlik TAM veya ÖZET | toplam satır
-Kural: bir grup 2000 satırı aşmasın, aşıyorsa ikiye böl.
-Grupları 1'den başlayarak numaralandır — Adım 11'de sırayla kullanılacak.
+## 6. DERİN ANALİZ PLANI
+Grup no | Grup adı | Ekranlar | Neden birlikte | Derinlik TAM/ÖZET | Toplam satır
+Kural: grup 2000 satırı aşmasın; aşarsa böl. Include sayfalarını, onları
+kullanan ekranla aynı gruba koy.
 
-## 5. Açık Sorular
+## 7. Açık Sorular
 
 # KURAL
-Ekranların iç mantığına girme (validasyon detayı, DTO alan listesi YOK).
-İyileştirme önerisi yazma.
+Ekranların iç mantığına girme (validasyon detayı, alan listesi YOK).
+İyileştirme yazma.
 ```
 
 ---
 
-## [CP] Adım 9 — Doğrulama
+## [CP] Adım 10 — Doğrulama
 
-Yeni chat — **aynı sohbette çalıştırma**, model kendi çıktısını savunur.
-P0 + aşağısı.
+Yeni chat — **aynı sohbette çalıştırma.** P0 + aşağısı.
 
 ```
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
-#file:docs/entry-akis/00b-gecis.md
+#file:docs/entry-akis/00b-akis.md
 #file:docs/entry-akis/00c-plan.md
 
 # GÖREV
-Bu üç dosya önceki turlarda üretildi. Onları ÜRETEN sen değilsin — eleştirel
-bir denetçisin. Her dosya:satır referansını koda karşı doğrula.
+Bu üç dosyayı ÜRETEN sen değilsin — eleştirel bir denetçisin. Her referansı
+koda karşı doğrula. Özellikle şunlara bak:
+- Bir iddia PG_XSuper.java'daki ÜRETİLMİŞ koda mı dayanıyor? Öyleyse geçersiz.
+- CCT'den çıkarılan geçişler gerçekten o dosyada var mı?
+- Include sayfaları atlanmış mı?
 
 # ÇIKTI
 ## Yanlış Referanslar
 İddia | Verilen referans | Kodda gerçekte ne var
-
+## Üretilmiş Koda Dayanan İddialar
 ## Uydurulmuş İçerik
-Kodda hiç karşılığı olmayan iddialar
-
 ## Eksikler
-Kodda var olup dokümanda geçmeyen: ekran, geçiş, servis, state alanı
-
+Kodda/CCT'de var olup dokümanda geçmeyen
 ## Şüpheli Genellemeler
-"Muhtemelen / genellikle / standart olarak" ile geçiştirilmiş kanıtsız yerler
 
 # KURAL
-Doğru maddeleri tek tek onaylama, sadece PROBLEMLİ olanları listele.
-Problem bulamazsan açıkça söyle; uydurma bulgu üretme.
-Düzeltmeleri doğrudan ilgili dosyaya uygula, sonunda neyi değiştirdiğini özetle.
+Sadece PROBLEMLİ olanları listele. Problem yoksa açıkça söyle, uydurma.
+Düzeltmeleri doğrudan dosyalara uygula, sonunda neyi değiştirdiğini özetle.
 ```
 
 ---
 
-## Adım 10 — Elle spot-check (atlama)
+## Adım 11 — Elle spot-check
 
-5 dakika. Harita yanlışsa 6-8 kart da yanlış çıkar.
-
-- `00a` envanterinde 14 ekranın hepsi var mı
-- `00b` geçiş tablosundan **3 ok** seç, kod referanslarını aç — gerçekten var mı
+- `00a` envanterinde 14 ekran + include'lar var mı
+- `00b` geçiş tablosundan **3 satır** seç, ilgili `.cct` dosyasını aç — doğru mu
 - `00c` state sözlüğünden **2 satır** seç, "yazan ekran" gerçekten yazıyor mu
-- `00c` grup planı mantıklı mı — sen daha iyi biliyorsun, gerekirse elle düzelt
+- `00c` grup planı mantıklı mı — gerekirse elle düzelt
 
-Hata bulursan düzelt, Adım 9'u tekrarla.
+Hata bulursan düzelt, Adım 10'u tekrarla.
 
 ---
 
-## [CP] Adım 11 — Ekran kartları
+## [CP] Adım 12 — Ekran kartları
 
 `00c`'deki **her grup için bir tur**, her tur yeni chat. P0 + aşağısı.
 
 ```
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/00b-akis.md
 #file:docs/entry-akis/00c-plan.md
-#file:docs/entry-akis/_tarama/11-lang-keyleri.txt
+#file:docs/entry-akis/_tarama/16-lang-keyleri.txt
+#file:docs/entry-akis/_tarama/14-yetki.txt
 
 # BU TURUN KAPSAMI
 Grup     : <00c'deki grup no ve adı>
 Ekranlar : <PG_X, PG_Y>
 Derinlik : <TAM | ÖZET>
-Dosyalar : <her ekranın .java / .html / .js yolunu #file: ile tek tek ver>
+Dosyalar : <her ekran için #file: ile: PG_X.java, PG_X.html, PG_X.js,
+            Con_acqX.java (varsa), con_acqX.cct>
+NOT: PG_XSuper.java ve Con_acqXSuper.java ÜRETİLMİŞ. Sadece alan/widget
+sözleşmesi için gerekirse aç; iş mantığı arama.
 
 # YÖNTEM
-Konvansiyonlar için 00a'daki "Türetilen Konvansiyonlar" bölümünü kullan —
-yeniden türetme.
+Konvansiyonlar için 00a'daki "Türetilen Konvansiyonlar"ı kullan, yeniden türetme.
 1. Yaşam döngüsü: bu ekranlarda hangi konvansiyon metotları var, ne yapıyorlar
-2. Olay zinciri: fireEvent (veya 00a'daki gerçek mekanizma) çağrılarını bul;
-   her olay adını STRING olarak iki repoda ara. Dinleyicisi yoksa "DİNLEYİCİSİ
-   BULUNAMADI", tetikleyicisi yoksa "ÖLÜ HANDLER ŞÜPHESİ"
-3. Servis çağrıları: her çağrı için BE'deki HMN_ACQ_Merchant_Internal
-   implementasyonunu bul. BE'ye erişemiyorsan arayüz imzası + DTO'yu çıkar ve
-   "BE TARAFI ANALİZ EDİLMEDİ" yaz — implementasyonu TAHMİN ETME
-4. DTO: HMN_ACQ_Merchant_Model sınıfları, alan bazlı Jackson anotasyonları
-5. Validasyon: her kuralın NEREDE uygulandığı (js / controller / Intf /
-   Internal / DB)
-6. i18n: 11-lang-keyleri.txt'den bu ekranların key'lerini süz; tr-en eksikleri,
-   kullanılmayan key'ler, kodda hardcoded metinler
-7. AKIŞ SÖZLEŞMESİ: bu ekran akış state'inden NEYİ OKUYOR, NEYİ YAZIYOR?
-   Beklediği veri gelmezse ne oluyor?
-8. Gruptaki ekranlar ikizse aynı işi yapan kodu YAN YANA karşılaştır
+2. CCT bağlamı: bu ekranın TASK tanımı ne diyor (butonlar, tab, geçişler)
+3. Olay zinciri: ACTION/Event'ler ile koddaki handler'ları eşleştir.
+   Karşılığı olmayan Event → "HANDLER BULUNAMADI".
+   CCT'de olmayan handler → "CCT'DE TANIMSIZ".
+4. Servis çağrıları: her çağrı için BE'deki HMN_ACQ_Merchant_Internal
+   implementasyonunu bul. BE'ye erişemiyorsan arayüz imzası + DTO'yu çıkar,
+   "BE TARAFI ANALİZ EDİLMEDİ" yaz — TAHMİN ETME.
+5. DTO: kullanılan request/response sınıfları, Jackson anotasyonları
+6. Validasyon: her kuralın NEREDE uygulandığı (js / PG_ / Con_ / Intf /
+   Internal / DB / _auth.properties)
+7. Yetki: bu ekranın _auth.properties tanımı ve kodda yetki kontrolü
+8. i18n: 16-lang-keyleri'nden bu ekranların key'leri; tr-en eksikleri,
+   kullanılmayanlar, hardcoded metinler
+9. AKIŞ SÖZLEŞMESİ: akış state'inden NEYİ OKUYOR, NEYİ YAZIYOR? Beklediği veri
+   gelmezse ne oluyor?
+10. İkiz grupsa aynı işi yapan kodu YAN YANA karşılaştır
 
 # ÇIKTI — docs/entry-akis/ekranlar/<grup-no>-<grup-adi>.md
-Her ekran için ayrı kart:
+Her ekran için:
 
 ## <PG_EkranAdı>
 ### Künye
-Tip, akıştaki yeri, nereden açılıyor, yetki/rol koşulu
+Tip, CCT'deki TaskID/ConvID, akıştaki yeri, nereden açılıyor, yetki koşulu
 ### Akış Sözleşmesi
 Yön (OKUR/YAZAR) | Veri | Kaynak/Hedef | Zorunlu mu | Yoksa ne oluyor
 ### Yaşam Döngüsü
-Çağrılan metotlar, sırası, her adımda ne olduğu
 ### Olay Haritası
-Olay | Tetikleyen | Dinleyen | Taşıdığı veri | Durum
+Event (CCT) | ControllerEvent | Handler (dosya:satır) | Durum
 ### İç Akışlar
-Mutlu yol + alternatifler + hata yolları; her biri için Mermaid sequence diagram
+Mutlu yol + alternatifler + hata yolları; Mermaid sequence diagram
 ### Servis Çağrıları
 Metot | Impl | Girdi DTO | Çıktı DTO | Hata davranışı | Timeout/retry | Referans
 ### Veri Sözleşmesi
@@ -518,194 +732,174 @@ Alan | Tip | Zorunlu | Jackson anotasyonu | Null davranışı | Enum | UI karş�
 ### Validasyon
 Alan | Kural | Nerede | Hata mesajı | Lang key var mı | Referans
 Ayrıca: sadece js'te olanlar; sadece BE'de olup UI'a yansımayanlar
+### Yetki
 ### Dialog ve Geri Bildirim
-Bloklayıcı mı, lokalize mi, iptal edilirse ne oluyor
 ### i18n
-tr'de var en'de yok / en'de var tr'de yok / kullanılmayan / hardcoded
 ### Ölü ve Şüpheli Kod
 ### Açık Sorular
 
 ## Grup İçi Karşılaştırma
-(sadece ikiz gruplarda) Konu | A davranışı | B davranışı | Fark kasıtlı mı | Referans
+(ikiz gruplarda) Konu | A | B | Fark kasıtlı mı | Referans
 
 # KURAL
-Derinlik ÖZET ise: Akış Sözleşmesi, Servis Çağrıları, Validasyon ve Dialog
-bölümlerini doldur, diğerlerini tek paragrafla geç.
-Kod bloğu yapıştırma; kritik 5-10 satırı alıntıla, gerisine referans ver.
-İyileştirme önerisi yazma.
+ÖZET derinlikte: Akış Sözleşmesi, Servis Çağrıları, Validasyon, Yetki, Dialog
+doldur; gerisini tek paragrafla geç.
+Üretilmiş Super sınıflarından iş kuralı çıkarma.
+Kod bloğu yapıştırma; kritik 5-10 satırı alıntıla. İyileştirme yazma.
 ```
 
-**Her turdan sonra:** "Akış Sözleşmesi" bölümü dolu mu bak. Boşsa o grubu
-tekrar çalıştır — Adım 12 buna dayanıyor.
+**Her turdan sonra:** "Akış Sözleşmesi" dolu mu? Boşsa o grubu tekrarla.
 
 ---
 
-## [CP] Adım 12 — Konsolidasyon
+## [CP] Adım 13 — Konsolidasyon
 
 Yeni chat. P0 + aşağısı.
 
 ```
 # GİRDİ
-#file:docs/entry-akis/00b-gecis.md
+#file:docs/entry-akis/00b-akis.md
 #file:docs/entry-akis/00c-plan.md
-#file:docs/entry-akis/ekranlar/<hepsini tek tek #file: ile ekle>
+#file:docs/entry-akis/ekranlar/<tüm kartları tek tek #file: ile ekle>
 
 # GÖREV
 Kartları birleştirip AKIŞ SEVİYESİNDE görünüm üret. Tek ekranın içinde
-görünmeyen, ancak ekranlar yan yana konunca ortaya çıkanı ara. Şüphelendiğin
-her noktayı kodda doğrula.
+görünmeyen, ekranlar yan yana konunca ortaya çıkanı ara. Şüphelendiğin her
+noktayı kodda doğrula.
 
 # ÇIKTI — docs/entry-akis/90-konsolidasyon.md
 ## 1. Uçtan Uca Senaryolar
-Her biri Mermaid sequence diagram + adım adım: mutlu yol; geri dönüş; iptal;
-oturum kopması; adım bazında başlıca hata yolları
-
+Mermaid sequence + adım adım: mutlu yol; geri dönüş (onBack); iptal
+(CancelButton); onay (ConfirmButton); oturum kopması; adım bazlı hata yolları
 ## 2. Akış State Bütünlüğü
-Yazılıp hiç okunmayanlar; okunduğu halde her yoldan yazılmayanlar; aynı verinin
+Yazılıp okunmayanlar; okunduğu halde her yoldan yazılmayanlar; aynı verinin
 farklı ekranda farklı isim/tiple taşınması; geri dönüşte temizlenmeyen artıklar
-
 ## 3. Validasyon Tutarlılık Matrisi
-Alan | Ekran | Kural | Nerede. Aynı alanı birden fazla ekran doğruluyorsa
-satırları yan yana koy, ÇELİŞKİLERİ işaretle. Ayrıca: hiçbir yerde sunucu
-karşılığı olmayan kurallar; bir ekranda zorunlu diğerinde opsiyonel alanlar
-
-## 4. Birleşik Veri Sözleşmesi
-Akışta kullanılan DTO'lar, hangi ekranda hangi alt kümesi, aynı kavramı
-temsil eden farklı DTO'lar
-
-## 5. Servis Çağrı Envanteri
-Birleşik tablo + aynı veriyi tekrar tekrar çeken çağrılar
-
-## 6. Olay Bütünlüğü
-Dinleyicisi olmayan olaylar; birden çok dinleyicisi olup sıra bağımlılığı olanlar
-
-## 7. Tekrarlanan Mantık Haritası
-Ne tekrarlanıyor | Nerelerde | Versiyonlar tutarlı mı | Hangisi doğru davranış
-
-## 8. i18n Bütünlüğü
-Eksik / hardcoded / ölü key'lerin birleşik listesi
-
-## 9. Kapsam Dışına Bağımlılıklar
-Kardeş akışlarla paylaşılan servis, DTO, utility, state — bu akış değişirse
+Alan | Ekran | Kural | Nerede. Aynı alanı birden fazla ekran doğruluyorsa yan
+yana koy, ÇELİŞKİLERİ işaretle. Ayrıca: sunucu karşılığı olmayan kurallar;
+bir ekranda zorunlu diğerinde opsiyonel alanlar
+## 4. Yetki Tutarlılığı
+_auth.properties tanımları arasındaki boşluk ve çelişkiler
+## 5. Birleşik Veri Sözleşmesi
+## 6. Servis Çağrı Envanteri
+Aynı veriyi tekrar tekrar çeken çağrılar
+## 7. Olay/CCT Bütünlüğü
+Handler'ı olmayan Event'ler; CCT'de tanımsız handler'lar; ulaşılamayan TASK'lar
+## 8. Tekrarlanan Mantık Haritası
+Ne tekrarlanıyor | Nerelerde | Tutarlı mı | Hangisi doğru davranış
+## 9. i18n Bütünlüğü
+## 10. Kapsam Dışına Bağımlılıklar
+Include sayfaları ve kardeş akışlarla paylaşılanlar — bu akış değişirse
 nereleri etkiler
-
-## 10. Açık Sorular
-Tüm kartlardan gelen soruların tekilleştirilmiş listesi
+## 11. Açık Sorular
 
 # KURAL
-Kartlarda yazana körü körüne güvenme; çelişki gördüğün yeri kodda doğrula.
+Kartlarda yazana körü körüne güvenme; çelişkiyi kodda doğrula.
 Kartlarda zaten yazılanı TEKRAR ETME — sadece birleştirince ortaya çıkanı yaz.
-İyileştirme önerisi yazma.
+İyileştirme yazma.
 ```
 
-Kart sayısı fazlaysa bu tur uzayabilir. Kesilirse: aynı prompt'u yeni chat'te
-tekrar gönder (Çalışma Disiplini kaldığı yerden devam ettirir), ya da Bölüm
-1-5 ve Bölüm 6-10 olarak iki tura böl.
+Kesilirse: aynı prompt'u yeni chat'te tekrar gönder, ya da Bölüm 1-6 ve
+Bölüm 7-11 olarak ikiye böl.
 
 ---
 
-## [CP] Adım 13 — Doğrulama
+## [CP] Adım 14 — Doğrulama
 
-Adım 9'un aynısı, girdi tek dosya:
+Adım 10'un aynısı, girdi: `#file:docs/entry-akis/90-konsolidasyon.md`
 
-```
-#file:docs/entry-akis/90-konsolidasyon.md
-```
-
-## Adım 14 — Elle spot-check
+## Adım 15 — Elle spot-check
 
 **Validasyon Tutarlılık Matrisi**'nden 3 satır seç, kod referanslarını aç.
-En sık hata var olmayan bir validasyonun raporlanması — bu yanlış Adım 15'e
+En sık hata var olmayan bir validasyonun raporlanması — bu yanlış Adım 16'ya
 taşınırsa tüm plan çürük temele oturur.
 
 ---
 
-## [CP] Adım 15 — İyileştirme planı
+## [CP] Adım 16 — İyileştirme planı
 
 Yeni chat. P0 + aşağısı.
 
 ```
 # GİRDİ
-#file:docs/entry-akis/00b-gecis.md
+#file:docs/entry-akis/00b-akis.md
 #file:docs/entry-akis/00c-plan.md
 #file:docs/entry-akis/90-konsolidasyon.md
 
 # GÖREV
 entry akışı için iyileştirme alanlarını çıkar. Kod yazma, plan üret.
-Bu dokümanlar doğrulama pasından geçti, ama iddia ettiğin her problemi kodda
-TEKRAR doğrula.
+Dokümanlar doğrulandı ama iddia ettiğin her problemi kodda TEKRAR doğrula.
 
 # EKSENLER — AKIŞ SEVİYESİ
-1. Adım yapısı: gereksiz/birleştirilebilir adımlar, ileri-geri gezdirme
+1. Adım yapısı: gereksiz/birleştirilebilir TASK'lar, ileri-geri gezdirme
 2. State taşıma: mekanizmanın kırılganlığı, geri dönüşte kaybolan veya
    temizlenmeyen state, yarıda kalan başvuru, oturum kopmasında veri kaybı
 3. Ekranlar arası tutarsızlık: aynı alanın farklı doğrulanması, aynı kavramın
    farklı isim/tiple taşınması
-4. İkiz ekranların konsolidasyonu: birleştirme mi, ortak parçayı çıkarma mı,
+4. CCT hijyeni: ulaşılamayan TASK, handler'ı olmayan Event, boş NextConvID ile
+   kalan çıkmazlar, DECISION dallarının kapsanmaması
+5. İkiz ekranların konsolidasyonu: birleştirme mi, ortak parçayı çıkarma mı,
    olduğu gibi bırakma mı — gerekçesiyle
-5. Modal/popup davranışı: bloklayıcılık, iptalde parent'ta kalan yarım state,
-   dönüş değerinin doğrulanmaması
+6. Include kullanımı: paylaşılan sayfaların sözleşmesi net mi, sürprizli
+   bağımlılık var mı
+7. Modal/popup: bloklayıcılık, iptalde parent'ta kalan yarım state, dönüş
+   değerinin doğrulanmaması
 
 # EKSENLER — EKRAN SEVİYESİ
-6. Validasyon boşluğu: sadece js'te olan (atlatılabilir) kurallar; BE'de olup
+8. Validasyon boşluğu: sadece js'te olan (atlatılabilir) kurallar; BE'de olup
    UI'a yansımayan hatalar; FE-BE çelişkileri
-7. Sözleşme sağlığı: DTO-UI uyuşmazlıkları, Jackson anotasyon eksikleri,
-   tip güvenliğinin kaybedildiği dönüşümler
-8. Olay hijyeni: dinleyicisi olmayan olaylar, örtük sıra bağımlılığı
-9. Kullanıcı geri bildirimi: sessizce yutulan hatalar, teknik mesajlar,
-   loading/empty/kısmi veri eksikliği
-10. Dayanıklılık: timeout/retry eksikleri, HopeReportGenerator senkron rapor
+9. Yetki: _auth.properties ile kod içi kontrolün uyuşmaması, tanımsız ekran
+10. Sözleşme sağlığı: DTO-UI uyuşmazlıkları, Jackson anotasyon eksikleri
+11. Kullanıcı geri bildirimi: sessizce yutulan hatalar, teknik mesajlar,
+    loading/empty/kısmi veri eksikliği
+12. Dayanıklılık: timeout/retry eksikleri, HopeReportGenerator senkron rapor
     riski, exception yutan catch'ler, yarım işlemde tutarlılık
-11. Performans: adım geçişlerinde tekrar eden çağrılar, N+1,
-    paralelleştirilebilir seri çağrılar, over-fetching
-12. i18n: eksik key, hardcoded metin, ölü key
-13. Güvenlik/yetki: sadece istemci tarafı yetki kontrolü, loglara düşen PII
-    veya işyeri/kart verisi, bağımlılık sürümleri (Jackson 2.9.6 dahil —
-    sürümü doğrula, bilinen risk varsa NOT olarak yaz, kesin iddia etme)
-14. Değişim riski: dokunmadan önce hangi karakterizasyon testleri yazılmalı
-15. İzolasyon fırsatları: net sınırı olan, parça parça çıkarılabilir alt-akışlar
+13. Performans: adım geçişlerinde tekrar eden çağrılar, N+1, seri çağrılar
+14. i18n: eksik key, hardcoded metin, ölü key
+15. Güvenlik: istemci tarafı yetki kontrolü, loglara düşen PII/işyeri verisi,
+    bağımlılık sürümleri (Jackson 2.9.6 — doğrula, risk varsa NOT olarak yaz)
+16. Değişim riski: hangi karakterizasyon testleri önce yazılmalı
+17. İzolasyon fırsatları
 
 # HER BULGU İÇİN
 ### [B-01] <Kısa başlık>
-- Eksen / Kapsam (akış geneli veya ekran adı)
-- Kanıt: dosya:satır — kodda tam olarak ne var
+- Eksen / Kapsam (akış geneli veya ekran)
+- Kanıt: dosya:satır — kodda tam olarak ne var.
+  ÜRETİLMİŞ Super dosyasına dayanan bulgu YAZMA.
 - Neden problem: SOMUT başarısızlık senaryosu (hangi input/durum → hangi yanlış
-  sonuç). "Best practice değil" gibi soyut gerekçe KABUL EDİLMEZ
+  sonuç). "Best practice değil" KABUL EDİLMEZ
 - Etki: kullanıcı + teknik
 - Önerilen çözüm: somut yaklaşım, hangi dosyalar değişir
-- Etkilenen diğer ekran/akış/job (konsolidasyon Bölüm 9)
+  (üretilmiş dosyalar değişecekse ÜRETİCİ ŞABLONU sorunudur, ayrıca belirt)
+- Etkilenen diğer ekran/akış/include
 - Nasıl geri alınır / kırılırsa nereden anlarız
 - Efor S/M/L — Risk düşük/orta/yüksek
 - Alternatifler ve neden bunu seçtin
 
 # ÇIKTI — docs/entry-akis/99-iyilestirme.md
-1. Bulgular, etki × efor'a göre sıralı
-2. QUICK WINS (S efor + düşük risk)
-3. YAPISAL DEĞİŞİKLİKLER (M/L), her biri için before/after Mermaid diyagramı
-4. DAVRANIŞ KORUYAN (refactor) ve DAVRANIŞ DEĞİŞTİREN (fix/feature) ayrı listeler
-5. ÖNCE YAZILMASI GEREKEN TESTLER — akış seviyesi ve ekran seviyesi ayrı
-6. BİLİNÇLİ OLARAK ÖNERMEDİKLERİM — eledikleri ve nedeni
+1. Bulgular, etki × efor sıralı
+2. QUICK WINS (S + düşük risk)
+3. YAPISAL DEĞİŞİKLİKLER (M/L), before/after Mermaid
+4. DAVRANIŞ KORUYAN / DAVRANIŞ DEĞİŞTİREN ayrı listeler
+5. ÖNCE YAZILMASI GEREKEN TESTLER — akış ve ekran seviyesi ayrı
+6. BİLİNÇLİ OLARAK ÖNERMEDİKLERİM
 
 # KURAL
-"Yeniden yazalım / modern framework'e taşıyalım / mimariyi değiştirelim" türü
-öneriler YASAK. Her öneri mevcut yapı içinde, artımlı ve geri alınabilir olmalı.
-Kanıtı olmayan bulgu yazma. En fazla 15 bulgu.
-Bir davranışın NEDEN öyle olduğu belirsizse öneri üretme, "Açık Sorular"a ekle.
-Kod yazma.
+"Yeniden yazalım / modern framework'e taşıyalım / mimariyi değiştirelim"
+YASAK. Her öneri mevcut yapı içinde, artımlı, geri alınabilir olmalı.
+Kanıtı olmayan bulgu yazma. En fazla 15 bulgu. Kod yazma.
 ```
 
 ---
 
 # Bitti
 
-Elinde şunlar olacak:
-
 ```
 docs/entry-akis/
-  _tarama/        11 tarama çıktısı
+  _tarama/             18 tarama çıktısı
   00a-envanter.md      envanter + türetilen konvansiyonlar
-  00b-gecis.md         geçiş grafiği + giriş/çıkış
-  00c-plan.md          state sözlüğü + servis matrisi + grup planı
+  00b-akis.md          CCT tabanlı akış grafiği
+  00c-plan.md          state + servis + DTO + yetki + grup planı
   ekranlar/*.md        ekran kartları
   90-konsolidasyon.md  akış seviyesi birleşik görünüm
   99-iyilestirme.md    bulgular + testler + öncelik
@@ -716,17 +910,18 @@ Uygulamaya geçerken bulguları **teker teker** iste:
 ```
 #file:docs/entry-akis/99-iyilestirme.md
 [B-03] numaralı bulguyu uygula. Plandaki "Önerilen çözüm"e sadık kal.
-Önce bulgudaki karakterizasyon testini yaz, mevcut davranışta geçtiğini
-doğrula, sonra değişikliği yap.
+Önce karakterizasyon testini yaz, mevcut davranışta geçtiğini doğrula, sonra
+değişikliği yap. Üretilmiş Super dosyalarına dokunma.
 ```
 
 ## Takıldığın yer olursa
 
 | Belirti | Çözüm |
 |---|---|
+| Değişkenler kaybolmuş (`Get-ChildItem $null` boş dönüyor) | Terminal sekmesi değişmiş. Adım 0'ı tekrar çalıştır |
 | Tur uzun sürüp kesiliyor | Aynı prompt'u yeni chat'te tekrar gönder; Çalışma Disiplini kaldığı yerden devam ettirir |
-| "Continue to iterate?" | Devam et. Sık oluyorsa model hâlâ kendi araması yapıyordur — tarama dosyalarını `#file:` ile verdiğinden emin ol |
-| BE tarafı analiz edilmemiş | İki repo tek workspace'te mi? `File > Add Folder to Workspace` ile `hmn_acq_merchant` ekle |
-| Bir tarama boş kaldı | Bırak. Promptlar "TARAMA BOŞ" yazıp devam edecek şekilde yazıldı |
-| Model konvansiyonu Spring/JSF gibi anlatıyor | P0 başlığını yapıştırmayı atlamışsın |
-| Sonraki tur öncekini hatırlamıyor | Çıktıyı `#file:` ile ver; chat geçmişine güvenme |
+| "Continue to iterate?" | Devam et. Sıklaşıyorsa model hâlâ kendi araması yapıyordur — tarama dosyalarını `#file:` ile verdiğinden emin ol |
+| BE tarafı analiz edilmemiş | `File > Add Folder to Workspace` ile `hmn_acq_merchant` ekle |
+| Model Super dosyalarından iş kuralı çıkarıyor | P0'daki "KRİTİK KURALLAR" bölümünü yapıştırmayı atlamışsın |
+| Akış grafiği eksik | CCT taraması boş olabilir — Adım 1'deki `FunctionalArea` kontrolünü çalıştır |
+| Bir tarama boş kaldı | Bırak. Promptlar "TARAMA BOŞ" yazıp devam edecek |
