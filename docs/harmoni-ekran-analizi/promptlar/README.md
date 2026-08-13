@@ -10,7 +10,7 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 |---|---|---|---|
 | `07-envanter.txt` | Envanter + konvansiyon türetme | Sonnet | `00a-envanter.md` |
 | `08-akis-yorum.txt` | Akış yorumu (grafik M1'den hazır) | Sonnet | `00b-akis.md` |
-| `09a-state.txt` | State sözlüğünü yorumla (M7 üretir) | **Opus** | `00c1-state.md` |
+| `09a-state.txt` | Paylaşılan state'i yorumla (M7 üretir) | Sonnet | `00c1-state.md` |
 | `09b-servis-dto.txt` | Servis, DTO, auth, ikizler | Sonnet | `00c2-servis-dto.md` |
 | `09c-plan.txt` | Grup planı + açık soru kapanışı | **Opus** | `00c3-plan.md` |
 | `10-dogrulama.txt` | Doğrulama | Sonnet | ilgili dosyaya düzeltme |
@@ -30,10 +30,12 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 
 > **Zaman aşımı alırsan** iki sebep olabilir:
 > 1. *Girdi büyük* → çıktı bölümlerine göre böl, frekans listelerini M6 ile kırp.
-> 2. *Model keşif yapıyor* → asıl sebep genelde bu. Prompt "kodda doğrula"
->    diyorsa model onlarca dosya açar ve tur patlar. Çözüm bölmek değil,
->    o keşfi script'e almak. Adım 9a böyle çözüldü: M7 state sözlüğünü
->    üretiyor, tur sadece yorumluyor.
+> 2. *Model keşif yapıyor* → prompt "kodda doğrula" diyorsa model onlarca
+>    dosya açar. Çözüm bölmek değil, o keşfi script'e almak.
+> 3. *Üretim uzun* → çıktı yüzlerce satır olacaksa tur bitmez. Çözüm
+>    **yorumlanacak satır sayısını mekanik olarak azaltmak**. Adım 9a'da
+>    ikisi de yaşandı: M7 sözlüğü üretti (2), sonra yerel alanlar elenip
+>    yalnızca paylaşılanlar bırakıldı (3).
 
 ## Sıra
 

@@ -868,7 +868,8 @@ Blok üç şey üretir:
 |---|---|
 | A | Scope API sayımı — hangi scope türü kaç kez kullanılıyor |
 | B | Ekran başına taşıyıcı nesneler ve scope türü |
-| C | **Alan bazlı okuma/yazma matrisi** — hangi ekran hangi alanı yazıyor, hangisi okuyor |
+| C | **Alan bazlı okuma/yazma matrisi** — `LOKAL` / `PAYLASILAN` / `OKUYAN-YOK` / `YAZAN-YOK` sınıflandırmasıyla |
+| — | Ayrıca `24b-state-paylasilan.txt`: yalnızca paylaşılan ve anomalili alanlar. Adım 9a bunu okur, 106 satırlık tam matrisi değil |
 
 C bölümü Adım 9a'nın asıl çıktısıydı; artık script üretiyor.
 
@@ -986,21 +987,53 @@ foreach ($f in $devJava) {
         }
     }
 }
-[void]$out.Add("| Tasiyici.Alan | YAZAN | OKUYAN | Durum |")
+# Kapsam siniflandirmasi: gercek paylasilan state = bir ekranin yazip
+# BASKA ekranin okudugu alan. Ayni ekranin yazip okudugu alan yereldir.
+$kapsam = @{}
+foreach ($key in $mat.Keys) {
+    $w = @($mat[$key].W); $r = @($mat[$key].R)
+    if ($w.Count -eq 0)      { $kapsam[$key] = 'YAZAN-YOK' }
+    elseif ($r.Count -eq 0)  { $kapsam[$key] = 'OKUYAN-YOK' }
+    else {
+        $capraz = $false
+        foreach ($x in $r) { if ($w -notcontains $x) { $capraz = $true; break } }
+        if ($w.Count -gt 1) { $capraz = $true }
+        if ($capraz) { $kapsam[$key] = 'PAYLASILAN' } else { $kapsam[$key] = 'LOKAL' }
+    }
+}
+[void]$out.Add("| Tasiyici.Alan | Kapsam | YAZAN | OKUYAN |")
 [void]$out.Add("|---|---|---|---|")
 foreach ($key in ($mat.Keys | Sort-Object)) {
-    $w = @($mat[$key].W); $r = @($mat[$key].R)
-    $durum = "ok"
-    if ($w.Count -eq 0) { $durum = "YAZAN YOK  << disaridan geliyor" }
-    elseif ($r.Count -eq 0) { $durum = "OKUYAN YOK << olu veri" }
-    [void]$out.Add("| " + $key + " | " + ($w -join ', ') + " | " + ($r -join ', ') + " | " + $durum + " |")
+    [void]$out.Add("| " + $key + " | " + $kapsam[$key] + " | " + (@($mat[$key].W) -join ', ') + " | " + (@($mat[$key].R) -join ', ') + " |")
 }
+
+# --- 24b: yalnizca yorumlanmaya deger satirlar ---
+$kisa = New-Object System.Collections.ArrayList
+[void]$kisa.Add("# Paylasilan state ve anomaliler")
+[void]$kisa.Add("")
+[void]$kisa.Add("LOKAL alanlar (ayni ekran yazip okuyor) bu dosyada YOK - tam liste 24-state-sozlugu.txt")
+foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK')) {
+    $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -eq $grp } | Sort-Object)
+    [void]$kisa.Add("")
+    [void]$kisa.Add("## " + $grp + "  (" + $satirlar.Count + " alan)")
+    [void]$kisa.Add("")
+    [void]$kisa.Add("| Tasiyici.Alan | YAZAN | OKUYAN |")
+    [void]$kisa.Add("|---|---|---|")
+    foreach ($key in $satirlar) {
+        [void]$kisa.Add("| " + $key + " | " + (@($mat[$key].W) -join ', ') + " | " + (@($mat[$key].R) -join ', ') + " |")
+    }
+}
+Set-Content "$O\24b-state-paylasilan.txt" -Value ($kisa -join "`r`n") -Encoding UTF8
 
 Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 "scope api cesidi : " + $sayim.Count
 "tasiyici tipi    : " + $tipler.Count
 "tasiyicili ekran : " + $holders.Count + " / " + $devJava.Count
 "alan sayisi      : " + $mat.Count
+"  paylasilan     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'PAYLASILAN' }).Count
+"  lokal          : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'LOKAL' }).Count
+"  okuyan yok     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'OKUYAN-YOK' }).Count
+"  yazan yok      : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'YAZAN-YOK' }).Count
 "24-state-sozlugu : " + $out.Count + " satir"
 ````
 

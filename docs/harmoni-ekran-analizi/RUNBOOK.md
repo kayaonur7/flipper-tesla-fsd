@@ -692,47 +692,49 @@ Her satırın yanında kaynak referansı. İyileştirme yazma.
 
 ---
 
-## [CP] Adım 9a — State sözlüğünü yorumla
+## [CP] Adım 9a — Paylaşılan state'i yorumla
 
-Yeni chat, **Opus**. **Önce M7'yi çalıştır** — sözlüğü script üretir, bu tur
-sadece yorumlar. İlk sürüm modelden mekanizmayı keşfetmesini istiyordu ve
-zaman aşımına uğradı.
+Yeni chat, **Sonnet**. **Önce M7'yi çalıştır.**
+
+İki kez zaman aşımı aldı. Birincisi keşif yüzündendi (M7 çözdü), ikincisi
+üretim uzunluğu yüzünden: 106 alanın tamamını yorumlaması isteniyordu. Artık
+sadece `24b-state-paylasilan.txt` okunuyor — yerel alanlar elenmiş hâli.
 
 ```
 # GİRDİ
-#file:docs/entry-akis/_tarama/24-state-sozlugu.txt
-#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/_tarama/24b-state-paylasilan.txt
 
 # GÖREV
-24-state-sozlugu.txt script tarafından üretildi; tabloları DOĞRU kabul et,
-yeniden çıkarma, kod okumaya GİTME. Senin işin yorumlamak.
+Dosya script tarafından üretildi. Tabloları DOĞRU kabul et, kod okuma,
+başka dosya açma. Sadece yorumla.
 
 # ÇIKTI — docs/entry-akis/00c1-state.md
-## 1. State Taşıma Mekanizması
-A bölümündeki scope API sayımını yorumla: veri hangi kapsamda taşınıyor
-(tab / conversation / request), taşıyıcı nesneler ne, bu ne anlama geliyor.
-Birden fazla scope türü kullanılıyorsa hangisi ne zaman tercih edilmiş.
+## 1. Paylaşılan Alanlar
+PAYLASILAN tablosundaki her satır için TEK CÜMLE: bu alan hangi adımda
+doluyor, hangi adımda tüketiliyor, taşınamazsa ne bozulur.
+Alanları taşıyıcı tipine göre grupla.
 
-## 2. Akış Boyunca Veri Yolculuğu
-C tablosunu 00b-akis.md'deki adım sırasıyla birleştir: hangi alan hangi
-adımda doluyor, hangi adımda tüketiliyor. Sırayla anlat.
+## 2. Çok Yazanlı Alanlar
+Birden fazla ekranın yazdığı alanlar: sıra bağımlılığı var mı, son yazan
+kazanıyorsa bu risk mi? Sadece bu gruba odaklan.
 
-## 3. Riskli Alanlar
-- `YAZAN YOK` işaretliler: veri akışa nereden giriyor? Girmezse ne olur?
-- `OKUYAN YOK` işaretliler: yazılıp hiç okunmuyor — ölü veri mi, başka
-  katmanda mı tüketiliyor?
-- Bir alanı birden çok ekran yazıyorsa: sıra bağımlılığı var mı, son yazan
-  kazanıyorsa bu kasıtlı mı?
+## 3. OKUYAN-YOK
+Yazılıp hiç okunmayan alanlar. Her biri için: ölü veri mi, yoksa BE'ye giden
+DTO'da mı tüketiliyor? Ayırt edemiyorsan "BELİRSİZ" yaz.
 
-## 4. Geri Dönüş ve İptal
-Kullanıcı önceki adıma dönerse veya iptal ederse bu alanlara ne oluyor?
-Tablodan çıkarabildiğin kadarını yaz, çıkaramadığını açık soru yap.
+## 4. YAZAN-YOK
+Okunan ama bu akışta yazılmayan alanlar — veri akışa nereden giriyor?
+Gelmezse ekran ne yapıyor?
 
 ## 5. Açık Sorular
 
 # KURAL
-Kod okuma. Tabloyu tekrar etme, üzerine yorum yap. İyileştirme yazma.
+Kısa yaz. Bölüm 1'de alan başına tek cümleyi aşma.
+Tabloları tekrar etme. Kod okuma. İyileştirme yazma.
 ```
+
+**Yine zaman aşımı alırsan:** prompt'u ikiye böl — önce Bölüm 1-2, sonra
+ayrı turda Bölüm 3-5 (ilk turun çıktısını `#file:` ile vererek).
 
 ---
 
