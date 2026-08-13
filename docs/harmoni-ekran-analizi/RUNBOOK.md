@@ -780,7 +780,7 @@ ApplicationPricing/ApplicationPricingTrio, TagInquiry/TagOperation
 
 ## [CP] Adım 9c — Grup planı ve açık soru kapanışı
 
-Yeni chat, **Opus**.
+Yeni chat, **Sonnet**.
 
 ```
 # GİRDİ
