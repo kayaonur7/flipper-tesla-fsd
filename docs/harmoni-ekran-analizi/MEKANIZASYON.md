@@ -389,6 +389,16 @@ Select-String -LiteralPath "$O\21-event-handler.txt" -SimpleMatch "DEGISKEN"  | 
 
 **Önce M0.**
 
+Üç şeye dikkat eder:
+- **UTF-8 okuma.** Lang json'ları UTF-8; Windows PowerShell varsayılanı ANSI
+  olduğu için `-Encoding UTF8` şart, yoksa `Hayır` → `HayÄ±r` olur.
+- **Çeviri eksikliği.** EN dosyası TR'nin yarısından azsa uyarı basar
+  (örn. `PG_TerminalInfo`: tr 128 / en 4 — pratikte Türkçe-only).
+- **Dinamik key ayrımı.** `lblOKCFirm7` gibi sonu rakamlı key'ler kodda
+  `"lblOKCFirm" + i` şeklinde üretiliyor olabilir; düz arama bulamaz ve ölü
+  sanar. Gövdesi kodda geçiyorsa `DINAMIK?` olarak ayrı listelenir, ölü
+  sayılmaz.
+
 Ekran başına tr/en key farkı ve html+js'te hiç geçmeyen ölü key'ler.
 
 ````powershell
@@ -397,28 +407,44 @@ $out = New-Object System.Collections.ArrayList
 foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     $n = $d.Name
     $kt = @(); $ke = @()
-    $ptr = Join-Path $d.FullName "${n}_lang_tr.json"
-    $pen = Join-Path $d.FullName "${n}_lang_en.json"
-    if (Test-Path $ptr) { $t = Get-Content -LiteralPath $ptr -Raw; if ($t) { $kt = @($rxKey.Matches($t) | ForEach-Object { $_.Groups[1].Value }) } }
-    if (Test-Path $pen) { $t = Get-Content -LiteralPath $pen -Raw; if ($t) { $ke = @($rxKey.Matches($t) | ForEach-Object { $_.Groups[1].Value }) } }
+    $ptr = Join-Path $d.FullName ($n + "_lang_tr.json")
+    $pen = Join-Path $d.FullName ($n + "_lang_en.json")
+    # lang json'lari UTF-8; -Encoding UTF8 sart, yoksa Turkce karakterler bozulur
+    if (Test-Path $ptr) { $t = Get-Content -LiteralPath $ptr -Raw -Encoding UTF8; if ($t) { $kt = @($rxKey.Matches($t) | ForEach-Object { $_.Groups[1].Value }) } }
+    if (Test-Path $pen) { $t = Get-Content -LiteralPath $pen -Raw -Encoding UTF8; if ($t) { $ke = @($rxKey.Matches($t) | ForEach-Object { $_.Groups[1].Value }) } }
 
     $src = ''
     foreach ($ext in 'html', 'js') {
-        $p = Join-Path $d.FullName "$n.$ext"
-        if (Test-Path $p) { $src += (Get-Content -LiteralPath $p -Raw) }
+        $p = Join-Path $d.FullName ($n + "." + $ext)
+        if (Test-Path $p) { $src += (Get-Content -LiteralPath $p -Raw -Encoding UTF8) }
     }
     $trOnly = @($kt | Where-Object { $ke -notcontains $_ })
     $enOnly = @($ke | Where-Object { $kt -notcontains $_ })
-    $olu    = @($kt | Where-Object { $src -notmatch [regex]::Escape($_) })
+
+    # Kullanilmayan key'leri ikiye ayir: gercekten olu vs dinamik uretilmis olabilir
+    # (lblOKCFirm7 gibi sonu rakamli key'ler dongude "lblOKCFirm" + i seklinde
+    #  uretiliyor olabilir; duz string aramasi bunlari olu sanar)
+    $olu = New-Object System.Collections.ArrayList
+    $dyn = New-Object System.Collections.ArrayList
+    foreach ($key in $kt) {
+        if ($src -match [regex]::Escape($key)) { continue }
+        $stem = $key -replace '\d+$', ''
+        if ($stem -ne $key -and $stem.Length -ge 3 -and $src -match [regex]::Escape($stem)) { [void]$dyn.Add($key) }
+        else { [void]$olu.Add($key) }
+    }
 
     [void]$out.Add("### $n")
     [void]$out.Add("  tr key: $($kt.Count)   en key: $($ke.Count)")
+    if ($ke.Count -gt 0 -and $kt.Count -gt 0 -and ($ke.Count * 2) -lt $kt.Count) {
+        [void]$out.Add("  UYARI: EN dosyasi TR'nin yarisindan az - ceviri eksik")
+    }
     if ($trOnly.Count) { [void]$out.Add("  TR'DE VAR EN'DE YOK : " + ($trOnly -join ', ')) }
     if ($enOnly.Count) { [void]$out.Add("  EN'DE VAR TR'DE YOK : " + ($enOnly -join ', ')) }
     if ($olu.Count)    { [void]$out.Add("  KULLANILMAYAN       : " + ($olu -join ', ')) }
-    if (-not $trOnly.Count -and -not $enOnly.Count -and -not $olu.Count) { [void]$out.Add("  temiz") }
+    if ($dyn.Count)    { [void]$out.Add("  DINAMIK? (govdesi kodda geciyor, tam adi gecmiyor) : " + ($dyn -join ', ')) }
+    if (-not $trOnly.Count -and -not $enOnly.Count -and -not $olu.Count -and -not $dyn.Count) { [void]$out.Add("  temiz") }
 }
-Set-Content "$O\22-lang-durumu.txt" -Value ($out -join "`r`n") -Encoding UTF8
+Set-Content "$O\22-lang-durumu.txt" -Value ($out -join "`r`n") -Encoding UTF8 -Encoding UTF8
 "22-lang-durumu : " + $out.Count + " satir"
 ````
 
@@ -474,7 +500,7 @@ $langMap = @{}
 $langFile = Join-Path $O "22-lang-durumu.txt"
 if (Test-Path $langFile) {
     $cur = $null
-    foreach ($l in (Get-Content -LiteralPath $langFile)) {
+    foreach ($l in (Get-Content -LiteralPath $langFile -Encoding UTF8)) {
         if ($l -match '^###\s+(\S+)') { $cur = $Matches[1]; $langMap[$cur] = New-Object System.Collections.ArrayList; continue }
         if ($cur) { [void]$langMap[$cur].Add($l) }
     }
