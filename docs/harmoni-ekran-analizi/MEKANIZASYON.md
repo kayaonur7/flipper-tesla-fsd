@@ -829,6 +829,27 @@ turuna not olarak taşınır.
 
 ---
 
+## M6 — Girdi kırpma
+
+Frekans listeleri (`06`, `07`, `08`) azalan sırada; ilk ~60 satır dışındaki
+kuyruk tek kullanımlık isimlerden ibaret ve modelin bütçesini yiyor.
+`08-erisimciler.txt` tek başına 1384 satır. Bu blok kırpılmış kopyalar üretir;
+Adım 9 bunları kullanır.
+
+````powershell
+$O = "docs\entry-akis\_tarama"
+foreach ($n in @('06-cagri-hedefleri', '07-importlar', '08-erisimciler')) {
+    $src = Join-Path $O ($n + '.txt')
+    if (-not (Test-Path $src)) { "ATLANDI: $n" ; continue }
+    $all = @(Get-Content -LiteralPath $src -Encoding UTF8)
+    $top = @($all | Select-Object -First 60)
+    Set-Content (Join-Path $O ($n + '-top.txt')) -Value ($top -join "`r`n") -Encoding UTF8
+    "{0,-22} {1,6} -> {2}" -f $n, $all.Count, $top.Count
+}
+````
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu

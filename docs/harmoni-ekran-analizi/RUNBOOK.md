@@ -137,7 +137,9 @@ Buna karşılık yoruma alınmış yönlendirme sayısı 7 — sanılandan fazla
 [ ] 6  [PS] Özet
 [ ] 7  [CP] Envanter + konvansiyon türetme   → 00a-envanter.md
 [ ] 8  [CP] Akış grafiği (CCT tabanlı)       → 00b-akis.md
-[ ] 9  [CP] State + servis + ikiz + plan     → 00c-plan.md
+[ ] 9a [CP] Paylaşılan state sözlüğü        → 00c1-state.md
+[ ] 9b [CP] Servis, DTO, auth, ikizler      → 00c2-servis-dto.md
+[ ] 9c [CP] Grup planı + açık sorular       → 00c3-plan.md
 [ ] 10 [CP] Doğrulama
 [ ] 11 [--] Elle spot-check
 [ ] 12 [CP] Ekran kartları — grup başına 1   → ekranlar/*.md
@@ -690,78 +692,119 @@ Her satırın yanında kaynak referansı. İyileştirme yazma.
 
 ---
 
-## [CP] Adım 9 — State, servis, ikizler ve grup planı
+## [CP] Adım 9a — Paylaşılan state sözlüğü
 
-Yeni chat. P0 + aşağısı. **Sonraki her şeyin girdisi.**
+Yeni chat, **Opus**. Adım 9 tek turda zaman aşımına uğradığı için üçe bölündü.
 
 ```
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
 #file:docs/entry-akis/00b-akis.md
-#file:docs/entry-akis/_tarama/06-cagri-hedefleri.txt
-#file:docs/entry-akis/_tarama/08-erisimciler.txt
+#file:docs/entry-akis/_tarama/08-erisimciler-top.txt
 #file:docs/entry-akis/_tarama/12-state.txt
+
+# GÖREV
+SADECE paylaşılan state. Servis, DTO, ikiz, grup planı bu turda YOK.
+
+# YÖNTEM
+1. 00a'daki "State taşıma adayları" ve 08-erisimciler-top'u kullan.
+   12-state.txt boşsa mekanizma farklı adlandırılmış; 08'den doğru olanı seç
+   ve kodda doğrula.
+2. CCT'deki ConvID/TaskID zincirinin state taşımadaki rolünü değerlendir —
+   veri conversation scope'unda mı, tab scope'unda mı, request'te mi?
+   00b'deki geçişlerin taşıdığı parametrelerle çapraz kontrol et.
+3. Her veri için: nerede saklanıyor, hangi ekran YAZIYOR, hangi ekran OKUYOR.
+
+# ÇIKTI — docs/entry-akis/00c1-state.md
+## 1. State Taşıma Mekanizmaları
+Mekanizma | Kapsam (conversation/tab/request/session) | Kod görünümü | Kanıt
+## 2. Paylaşılan State Sözlüğü
+Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip | Akış sonu
+## 3. Boşluklar
+Yazılıp hiç okunmayanlar; okunup hiç yazılmayanlar; aynı verinin farklı
+ekranda farklı isimle taşınması
+## 4. Açık Sorular
+
+# KURAL
+Mekanizma belirsizse "BİLİNMİYOR" yaz, uydurma. İyileştirme yazma.
+```
+
+---
+
+## [CP] Adım 9b — Servis, DTO, auth, ikizler
+
+Yeni chat, **Sonnet** yeterli.
+
+```
+# GİRDİ
+#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/_tarama/06-cagri-hedefleri-top.txt
 #file:docs/entry-akis/_tarama/17-dto.txt
 #file:docs/entry-akis/_tarama/14-yetki.txt
 #file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
-#file:docs/entry-akis/_tarama/23-acik-sorular.txt
-#file:docs/entry-akis/00b-akis.md
 
 # GÖREV
-Paylaşılan state, servis kesişimi, DTO envanteri, _auth.properties'in rolü ve
-ikiz ekranlar; sonra derin analiz planı.
-00b-akis.md'nin "Açık Sorular" bölümündeki maddeleri 23-acik-sorular.txt ile
-karşılaştır: hangileri kapandı, hangileri hâlâ açık? Kapananları cevabıyla
-birlikte yaz, kapanmayanları Bölüm 7'ye taşı.
+Servis kesişimi, DTO envanteri, _auth.properties'in rolü, ikiz ekranlar.
+State ve grup planı bu turda YOK.
 
-# YÖNTEM
-1. PAYLAŞILAN STATE — en kritik adım.
-   00a'daki "State taşıma adayları" + 08-erisimciler + 12-state.
-   12-state boşsa mekanizma farklı adlandırılmış; 08'den doğru olanı seç ve
-   kodda doğrula. CCT'deki ConvID/TaskID zincirinin state taşımadaki rolünü de
-   değerlendir.
-   Her veri için: nerede saklanıyor, hangi ekran YAZIYOR, hangi ekran OKUYOR.
-2. SERVİS KESİŞİMİ: 00a'daki servis konvansiyonuyla 06'dan servis çağrılarını
-   ayıkla. Hangi metot kaç ekrandan çağrılıyor?
-3. DTO ENVANTERİ: 17-dto.txt — request/response sınıfları hangi ekranlarla
-   ilişkili, alanları ne.
-4. YETKİ MODELİ: 14-yetki.txt — dosyaların 14'ü BOŞ, bu bilinen bir olgu.
-   Doldurulmuş olan(lar) neyi tanımlıyor? Boş olanlar için yetki kontrolü
-   kodda mı yapılıyor, hiç mi yapılmıyor? Kodda yetki kontrolü ara ve
-   _auth.properties ile ilişkisini kur.
-5. İKİZLER: ApplicationAccount/ApplicationAccountEdit,
-   ApplicationPricing/ApplicationPricingTrio, TagInquiry/TagOperation ve
-   envanterden çıkan diğerleri. Yüzeysel karşılaştır: boyut, ortak metot adları,
-   ortak lang key'leri, ortak DTO. "Kopya şüphesi VAR/YOK/İNCELENMELİ".
-6. GRUP PLANI: ekranları (include'lar dahil) 6-8 gruba indir.
-
-# ÇIKTI — docs/entry-akis/00c-plan.md
-## 1. Paylaşılan State Sözlüğü
-Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip | Akış sonu
-Ayrıca: yazılıp hiç okunmayanlar; okunup hiç yazılmayanlar
-
-## 2. Servis Paylaşım Matrisi
-Servis metodu | Çağıran ekranlar | Çağrı sayısı | Aynı parametrelerle mi
-
-## 3. DTO Envanteri
-DTO | Paket | İlişkili ekranlar | Alan sayısı | Notlar
-
-## 4. Yetki Modeli
-Ekran | _auth.properties içeriği | Tanımlı mı | Tutarsızlık
-
-## 5. İkiz / Varyant Adayları
-Ekran A | Ekran B | Benzerlik kanıtı | Kopya şüphesi
-
-## 6. DERİN ANALİZ PLANI
-Grup no | Grup adı | Ekranlar | Neden birlikte | Derinlik TAM/ÖZET | Toplam satır
-Kural: grup 2000 satırı aşmasın; aşarsa böl. Include sayfalarını, onları
-kullanan ekranla aynı gruba koy.
-
-## 7. Açık Sorular
+# ÇIKTI — docs/entry-akis/00c2-servis-dto.md
+## 1. Servis Paylaşım Matrisi
+Servis | Edinme mekanizması | Çağıran ekranlar | Aynı parametrelerle mi
+## 2. DTO Envanteri
+DTO | Paket | İlişkili ekranlar | Alan sayısı | İki adlandırma kalıbından hangisi
+## 3. _auth.properties
+Rolü ne? 15 dosyanın 14'ü boş, dolu olan validasyon hata mesajı içeriyor.
+Framework'te bu dosyanın ne işe yaradığını başka akışlardaki örneklerden
+türet. Türetemezsen "BİLİNMİYOR" yaz ve açık soruya ekle.
+## 4. İkiz / Varyant Adayları
+Ekran A | Ekran B | Benzerlik kanıtı | Kopya şüphesi (VAR/YOK/İNCELENMELİ)
+Zorunlu incelenecekler: ApplicationAccount/ApplicationAccountEdit,
+ApplicationPricing/ApplicationPricingTrio, TagInquiry/TagOperation
+## 5. Açık Sorular
 
 # KURAL
-Ekranların iç mantığına girme (validasyon detayı, alan listesi YOK).
 İyileştirme yazma.
+```
+
+---
+
+## [CP] Adım 9c — Grup planı ve açık soru kapanışı
+
+Yeni chat, **Opus**.
+
+```
+# GİRDİ
+#file:docs/entry-akis/00c1-state.md
+#file:docs/entry-akis/00c2-servis-dto.md
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
+#file:docs/entry-akis/_tarama/23-acik-sorular.txt
+
+# GÖREV
+(a) Derin analiz planı, (b) açık soruların kapanış durumu.
+
+# ÇIKTI — docs/entry-akis/00c3-plan.md
+## 1. DERİN ANALİZ PLANI
+Grup no | Grup adı | Ekranlar | Neden birlikte | Derinlik TAM/ÖZET | Toplam satır
+Kurallar:
+- Grup 2000 satırı aşmasın; aşarsa böl
+- İkiz ekranlar aynı grupta olmalı (yan yana karşılaştırılacaklar)
+- Ortak state yazan/okuyan ekranlar aynı grupta olmaya çalışsın
+- Include sayfalarını, onları kullanan ekranla aynı gruba koy
+- CCT'de TASK'ı olmayan 4 popup'ı ayrı bir grupta topla
+- 1'den başlayarak numaralandır — Adım 12 bu numarayla çalışacak
+
+## 2. Açık Soru Durumu
+00b-akis.md, 00c1 ve 00c2'deki tüm açık soruları tek listede topla.
+Her biri için 23-acik-sorular.txt'ye bak:
+Soru | Durum (KAPANDI / AÇIK) | Kapandıysa cevabı ve kanıtı | Açıksa kim
+cevaplayacak (Adım 12 / insan)
+
+## 3. Riskli Alanlar
+Plana göre hangi grup en yüksek belirsizlik taşıyor, neden
+
+# KURAL
+İyileştirme yazma. Grup planı Adım 12'nin girdisi — özenli ol.
 ```
 
 ---

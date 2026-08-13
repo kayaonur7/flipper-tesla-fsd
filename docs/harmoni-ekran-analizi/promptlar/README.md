@@ -10,7 +10,9 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 |---|---|---|---|
 | `07-envanter.txt` | Envanter + konvansiyon türetme | Sonnet | `00a-envanter.md` |
 | `08-akis-yorum.txt` | Akış yorumu (grafik M1'den hazır) | Sonnet | `00b-akis.md` |
-| `09-state-plan.txt` | State + servis + ikiz + grup planı | **Opus** | `00c-plan.md` |
+| `09a-state.txt` | Paylaşılan state sözlüğü | **Opus** | `00c1-state.md` |
+| `09b-servis-dto.txt` | Servis, DTO, auth, ikizler | Sonnet | `00c2-servis-dto.md` |
+| `09c-plan.txt` | Grup planı + açık soru kapanışı | **Opus** | `00c3-plan.md` |
 | `10-dogrulama.txt` | Doğrulama | Sonnet | ilgili dosyaya düzeltme |
 | `12-ekran-karti.txt` | Ekran kartı tamamlama | Sonnet | `ekranlar/*.hazir.md` |
 | `13-konsolidasyon.txt` | Konsolidasyon | **Opus** | `90-konsolidasyon.md` |
@@ -26,13 +28,18 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
   çalıştırılır.
 - **`13-konsolidasyon.txt`** — tüm ekran kartlarını `#file:` ile ekle.
 
+> Adım 9 tek turda zaman aşımına uğradı (girdi ~3500 satır, yedi bölüm çıktı).
+> Üçe bölündü ve frekans listeleri M6 ile kırpılıyor. Başka bir tur da
+> zaman aşımına uğrarsa aynı yöntem: çıktı bölümlerine göre böl, uzun
+> frekans girdilerini kırp.
+
 ## Sıra
 
 Ayrıntı için [../RUNBOOK.md](../RUNBOOK.md) ve [../MEKANIZASYON.md](../MEKANIZASYON.md).
 
 ```
 PowerShell: Adım 0-6  →  M0, M1, M2, M3
-07  →  M4 (svcRx'i 00a'ya göre daralt)  →  08  →  09
+07  →  M4  →  M6 (girdi kırpma)  →  08  →  09a  →  09b  →  09c
 10 + elle spot-check
 12 × grup sayısı  →  13  →  14 + elle spot-check  →  16
 ```
