@@ -469,12 +469,23 @@ $rxUse = [regex]'\b([a-z]\w*(?:Controller|Service))\s*\.\s*([a-z]\w*)\s*\('
 $rxCatch = [regex]'catch\s*\(\s*([\w\.]+)\s+(\w+)\s*\)'
 $valRx = [regex]'(?i)validate|isValid|required|mandatory|isEmpty|isBlank|\.length|matches\(|showCustomMessageBox'
 
+# M3'un urettigi dil durumunu ekran bazinda oku (karta gomulecek)
+$langMap = @{}
+$langFile = Join-Path $O "22-lang-durumu.txt"
+if (Test-Path $langFile) {
+    $cur = $null
+    foreach ($l in (Get-Content -LiteralPath $langFile)) {
+        if ($l -match '^###\s+(\S+)') { $cur = $Matches[1]; $langMap[$cur] = New-Object System.Collections.ArrayList; continue }
+        if ($cur) { [void]$langMap[$cur].Add($l) }
+    }
+}
+
 foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     $n = $d.Name
     $k = New-Object System.Collections.ArrayList
     [void]$k.Add("# $n")
     [void]$k.Add("")
-    [void]$k.Add("> Tablolar script tarafından dolduruldu. `<!-- MODEL -->` işaretli")
+    [void]$k.Add("> Tablolar script tarafından dolduruldu. ``<!-- MODEL -->`` işaretli")
     [void]$k.Add("> bölümleri Copilot dolduracak. Tablolara dokunma.")
     [void]$k.Add("")
 
@@ -617,12 +628,13 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     [void]$k.Add("")
     [void]$k.Add("## Yetki")
     [void]$k.Add("")
-    $pa = Join-Path $d.FullName "${n}_auth.properties"
+    $pa = Join-Path $d.FullName ($n + "_auth.properties")
+    $bt = [string][char]96
     if (Test-Path $pa) {
         $ca = @(Get-Content -LiteralPath $pa)
-        if ($ca.Count -eq 0) { [void]$k.Add("`${n}_auth.properties` mevcut ama **BOŞ**.") }
-        else { $ca | ForEach-Object { [void]$k.Add("- ``$_``") } }
-    } else { [void]$k.Add("_auth.properties **YOK**.") }
+        if ($ca.Count -eq 0) { [void]$k.Add($bt + $n + "_auth.properties" + $bt + " mevcut ama **BOŞ**.") }
+        else { $ca | ForEach-Object { [void]$k.Add("- " + $bt + $_ + $bt) } }
+    } else { [void]$k.Add($bt + $n + "_auth.properties" + $bt + " **YOK**.") }
 
     # --- include ---
     [void]$k.Add("")
@@ -633,11 +645,13 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     if ($inc) { $inc | ForEach-Object { [void]$k.Add("- ``$(Split-Path $_.Path -Leaf):$($_.LineNumber)`` — $($_.Line.Trim())") } }
     else { [void]$k.Add("yok") }
 
-    # --- dil ---
+    # --- dil (22-lang-durumu.txt'den ilgili bolum) ---
     [void]$k.Add("")
     [void]$k.Add("## Dil Durumu")
     [void]$k.Add("")
-    [void]$k.Add("22-lang-durumu.txt içindeki `### $n` bölümüne bak.")
+    if ($langMap.ContainsKey($n) -and @($langMap[$n]).Count -gt 0) {
+        foreach ($l in $langMap[$n]) { if ($l.Trim()) { [void]$k.Add($l.Trim()) } }
+    } else { [void]$k.Add("22-lang-durumu.txt'de bu ekran için kayıt yok.") }
 
     # --- modelin dolduracagi bolumler ---
     foreach ($h in @(
