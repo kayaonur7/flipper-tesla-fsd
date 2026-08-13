@@ -34,11 +34,15 @@ metin göndermeyi değil. PowerShell eklentisi kilitli ortamda açılmıyorsa 3.
 
 ### Oturum bağımlılığı
 
-M2, M3 ve M4; M1'in ürettiği `$convs` / `$tasks` / `$trans` değişkenlerine ve
-Adım 0'ın köklerine bağlıdır. Terminal sekmesi kapandıysa veya Adım 7'den
-sonra M4'e dönüyorsan **önce M0'ı çalıştır** — kökleri kurar ve CCT'yi yeniden
-parse eder. M0 dosya yazmaz, sadece belleği doldurur; istediğin kadar
-tekrarlayabilirsin.
+**M0'ı bir kez çalıştırman yeterli** — parse sonucunu `_tarama/cct-*.csv`
+dosyalarına da yazar. M1, M2 ve M4 bellekte veri bulamazsa CSV'den yükler, yani
+yeni terminalde de çalışırlar.
+
+Buna rağmen kökler (`$W`, `$J`, `$CCT`, `$O`) her blokta yeniden tanımlanıyor,
+o yüzden hiçbir blok başka bir bloğun oturumuna bağlı değil.
+
+> Bu koruma eklenmeden önce M0'ı bir sekmede, M1'i başkasında çalıştırmak
+> tabloları boş üretiyordu. Artık üretemez.
 
 ### Çalıştırma sırası
 
@@ -98,6 +102,11 @@ foreach ($f in $cctEntry) {
         }
     }
 }
+# Diske de yaz: sonraki bloklar yeni terminalde de calissin
+$convs | Export-Csv "$O\cct-convs.csv" -NoTypeInformation -Encoding UTF8
+$tasks | Export-Csv "$O\cct-tasks.csv" -NoTypeInformation -Encoding UTF8
+$trans | Export-Csv "$O\cct-trans.csv" -NoTypeInformation -Encoding UTF8
+
 "kok kontrol  : W={0} J={1} CCT={2}" -f (Test-Path $W), (Test-Path $J), (Test-Path $CCT)
 "CONVERSATION : " + $convs.Count
 "TASK         : " + $tasks.Count
@@ -118,6 +127,16 @@ yine işlenir.
 Modelin CCT okuyup grafik çizmesine gerek kalmaz.
 
 ````powershell
+# Kokler + bellekte yoksa CSV'den yukle (M0 baska terminalde calismis olabilir)
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$CCT = "src\main\webapp\cct"
+$O   = "docs\entry-akis\_tarama"
+if (-not $tasks -or @($tasks).Count -eq 0) {
+    $convs = @(Import-Csv "$O\cct-convs.csv"); $tasks = @(Import-Csv "$O\cct-tasks.csv"); $trans = @(Import-Csv "$O\cct-trans.csv")
+    "CSV'den yuklendi: conv={0} task={1} trans={2}" -f $convs.Count, $tasks.Count, $trans.Count
+}
+
 $fence = '```'
 $md = New-Object System.Collections.ArrayList
 [void]$md.Add("# entry Akışı — Otomatik Üretilmiş Grafik")
@@ -190,6 +209,16 @@ CCT'deki her `ControllerEvent` için java tarafında karşılığı var mı, ve 
 koddaki `onXxx` metotlarından CCT'de tanımsız olan hangileri.
 
 ````powershell
+# Kokler + bellekte yoksa CSV'den yukle (M0 baska terminalde calismis olabilir)
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$CCT = "src\main\webapp\cct"
+$O   = "docs\entry-akis\_tarama"
+if (-not $tasks -or @($tasks).Count -eq 0) {
+    $convs = @(Import-Csv "$O\cct-convs.csv"); $tasks = @(Import-Csv "$O\cct-tasks.csv"); $trans = @(Import-Csv "$O\cct-trans.csv")
+    "CSV'den yuklendi: conv={0} task={1} trans={2}" -f $convs.Count, $tasks.Count, $trans.Count
+}
+
 $rows = New-Object System.Collections.ArrayList
 [void]$rows.Add("=== CCT olayi -> java handler ===")
 foreach ($r in ($trans | Sort-Object FromPage, CtrlEvent)) {
@@ -275,6 +304,16 @@ yalnızca `<!-- MODEL -->` işaretli yerleri doldurur.
 öğren; `$svcRx` içindeki listeyi ona göre daralt. Varsayılan geniş bırakıldı.
 
 ````powershell
+# Kokler + bellekte yoksa CSV'den yukle (M0 baska terminalde calismis olabilir)
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$CCT = "src\main\webapp\cct"
+$O   = "docs\entry-akis\_tarama"
+if (-not $tasks -or @($tasks).Count -eq 0) {
+    $convs = @(Import-Csv "$O\cct-convs.csv"); $tasks = @(Import-Csv "$O\cct-tasks.csv"); $trans = @(Import-Csv "$O\cct-trans.csv")
+    "CSV'den yuklendi: conv={0} task={1} trans={2}" -f $convs.Count, $tasks.Count, $trans.Count
+}
+
 $svcRx = [regex]'([A-Za-z_][A-Za-z0-9_]*(?:Intf|Service|Manager|Facade|Delegate|Client|Proxy|Dao|DAO))\s*\.\s*([a-z][A-Za-z0-9_]*)\s*\('
 $valRx = [regex]'(?i)validate|isValid|required|mandatory|isEmpty|isBlank|\.length|matches\(|showCustomMessageBox'
 
