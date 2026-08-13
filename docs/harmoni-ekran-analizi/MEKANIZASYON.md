@@ -104,6 +104,9 @@ foreach ($f in $cctEntry) {
 "TRANSITION   : " + $trans.Count
 ````
 
+**Beklenen:** `CONVERSATION 9`, `TASK 19`, `TRANSITION 71`. Sapma varsa
+M1'e geçmeden sebebini bul.
+
 `PARSE HATASI` uyarısı çıkarsa dosya adını not et — o CCT atlanır, kalanlar
 yine işlenir.
 

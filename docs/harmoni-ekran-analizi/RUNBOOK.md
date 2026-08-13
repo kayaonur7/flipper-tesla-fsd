@@ -72,7 +72,7 @@ Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 | Ekran klasörü (`$W`) | 14, kökte dosya yok |
 | webapp dosyası | 90 — her ekran 6'lı set + fazlalıklar |
 | java (`$J`) | 50 — dev + üretilmiş `Super`, `PG_` + `Con_` |
-| entry CCT'si | 9 dosya, 14 ekranı kapsamıyor |
+| entry CCT'si | 9 dosya — 19 TASK, 71 TRANSITION |
 | CCT'de TASK'ı olmayan ekran | 4: `PG_AccountWalletPopup`, `PG_AddNote`, `PG_LoyaltyProgramRatePopup`, `PG_TagOperation` — koddan açılan popup'lar |
 | Birden çok conversation'da geçen TASK | `PG_MerchantSecurityCheck`, `PG_PricingTrioEdit` |
 | `_auth.properties` | 15 dosyanın 14'ü **boş** — yetki tanımları doldurulmamış |
