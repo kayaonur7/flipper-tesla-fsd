@@ -431,8 +431,19 @@ Set-Content "$O\22-lang-durumu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 Her ekran için tabloları dolu, yorum bölümleri boş bir kart üretir. Model
 yalnızca `<!-- MODEL -->` işaretli yerleri doldurur.
 
-**Önce Adım 7'yi çalıştır** ve `00a-envanter.md`'den gerçek servis sonekini
-öğren; `$svcRx` içindeki listeyi ona göre daralt. Varsayılan geniş bırakıldı.
+Servis desenleri Adım 7'de repodan türetildi ve buraya sabitlendi. Harmoni'de
+servis erişimi **dört mekanizmayla** oluyor:
+
+```
+RemoteUtility.getServiceCloudVersion(XController.class)   Cloud/REST
+RemoteUtility.getXController()                            kısayol erişimci
+JABSSupport.getJABS().getRemote(X.class)                  JABS remote (EJB benzeri)
+getService(X.class)                                       generic sarmalayıcı
+```
+
+Ekranlar bunları lazy getter içinde sarmalıyor, bazen alan cache'liyor. Bu
+yüzden kart iki ayrı tablo üretir: **bağımlı olunan servisler** (edinme
+noktaları) ve **çağrılan metotlar** (kullanım noktaları).
 
 ````powershell
 # Kokler + bellekte yoksa CSV'den yukle (M0 baska terminalde calismis olabilir)
@@ -445,7 +456,17 @@ if (-not $tasks -or @($tasks).Count -eq 0) {
     "CSV'den yuklendi: conv={0} task={1} trans={2}" -f $convs.Count, $tasks.Count, $trans.Count
 }
 
-$svcRx = [regex]'([A-Za-z_][A-Za-z0-9_]*(?:Intf|Service|Manager|Facade|Delegate|Client|Proxy|Dao|DAO))\s*\.\s*([a-z][A-Za-z0-9_]*)\s*\('
+# Servis EDINME noktalari (dort mekanizma)
+$rxAcq = @(
+    @{ K = 'Cloud';   R = [regex]'RemoteUtility\.getServiceCloudVersion\s*\(\s*(\w+)\.class' },
+    @{ K = 'Kisayol'; R = [regex]'RemoteUtility\.get(?!ServiceCloudVersion)(\w+)\s*\(' },
+    @{ K = 'JABS';    R = [regex]'getRemote\s*\(\s*(\w+)\.class' },
+    @{ K = 'Generic'; R = [regex]'\bgetService\s*\(\s*(\w+)\.class' }
+)
+# Servis KULLANIM noktalari
+$rxUse = [regex]'\b([a-z]\w*(?:Controller|Service))\s*\.\s*([a-z]\w*)\s*\('
+# catch bloklari (dayaniklilik ekseni)
+$rxCatch = [regex]'catch\s*\(\s*([\w\.]+)\s+(\w+)\s*\)'
 $valRx = [regex]'(?i)validate|isValid|required|mandatory|isEmpty|isBlank|\.length|matches\(|showCustomMessageBox'
 
 foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
@@ -508,9 +529,29 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
         [void]$k.Add("| $($r.Event) | $($r.CtrlEvent) | $($r.NextConv) | $($r.NextTask) | $hit |")
     }
 
-    # --- servis cagrilari ---
+    # --- bagimli olunan servisler (edinme) ---
     [void]$k.Add("")
-    [void]$k.Add("## Servis Çağrıları (aday)")
+    [void]$k.Add("## Bağımlı Olunan Servisler")
+    [void]$k.Add("")
+    [void]$k.Add("| Servis | Mekanizma | Dosya:satır |")
+    [void]$k.Add("|---|---|---|")
+    foreach ($cand in @("$n.java", "${n}Super.java")) {
+        $p = Join-Path $J $cand
+        if (-not (Test-Path $p)) { continue }
+        $ln = 0
+        foreach ($line in (Get-Content -LiteralPath $p)) {
+            $ln++
+            foreach ($a in $rxAcq) {
+                foreach ($m in $a.R.Matches($line)) {
+                    [void]$k.Add("| $($m.Groups[1].Value) | $($a.K) | $cand`:$ln |")
+                }
+            }
+        }
+    }
+
+    # --- cagrilan metotlar (kullanim) ---
+    [void]$k.Add("")
+    [void]$k.Add("## Çağrılan Servis Metotları")
     [void]$k.Add("")
     [void]$k.Add("| Nesne | Metot | Dosya:satır |")
     [void]$k.Add("|---|---|---|")
@@ -520,8 +561,30 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
         $ln = 0
         foreach ($line in (Get-Content -LiteralPath $p)) {
             $ln++
-            foreach ($m in $svcRx.Matches($line)) {
+            foreach ($m in $rxUse.Matches($line)) {
                 [void]$k.Add("| $($m.Groups[1].Value) | $($m.Groups[2].Value) | $cand`:$ln |")
+            }
+        }
+    }
+
+    # --- catch bloklari ---
+    [void]$k.Add("")
+    [void]$k.Add("## Catch Blokları")
+    [void]$k.Add("")
+    [void]$k.Add("| Exception | Değişken | Dosya:satır | Sonraki 2 satır |")
+    [void]$k.Add("|---|---|---|---|")
+    foreach ($cand in @("$n.java", "${n}Super.java")) {
+        $p = Join-Path $J $cand
+        if (-not (Test-Path $p)) { continue }
+        $ls = @(Get-Content -LiteralPath $p)
+        for ($i = 0; $i -lt $ls.Count; $i++) {
+            foreach ($m in $rxCatch.Matches($ls[$i])) {
+                $nx = ''
+                if ($i + 1 -lt $ls.Count) { $nx += $ls[$i + 1].Trim() + ' ' }
+                if ($i + 2 -lt $ls.Count) { $nx += $ls[$i + 2].Trim() }
+                $nx = $nx -replace '\|', '\\|'
+                if ($nx.Length -gt 90) { $nx = $nx.Substring(0, 90) }
+                [void]$k.Add("| $($m.Groups[1].Value) | $($m.Groups[2].Value) | $cand`:$($i+1) | $nx |")
             }
         }
     }
@@ -709,7 +772,13 @@ Adım 14-15      doğrulama + spot-check
 Adım 16         iyileştirme                  [Opus]
 ```
 
-M4'ü Adım 7'den sonraya koymanın sebebi: servis deseni oradan çıkıyor. Şimdi
-çalıştırırsan "Servis Çağrıları (aday)" tablosu gürültülü olur — sonra tekrar
-çalıştırıp kartları yenilemen gerekir, ama `<!-- MODEL -->` bölümlerini
-doldurmadan önce yaparsan kayıp olmaz.
+M4 Adım 7'den sonra çalışır çünkü servis desenleri oradan türetilmişti; artık
+bloğa sabitlendiler, ek ayar gerekmiyor.
+
+**Catch blokları tablosu** dayanıklılık ekseninin hammaddesi: "sonraki 2 satır"
+sütunu boşsa veya sadece `}` içeriyorsa exception sessizce yutuluyor demektir.
+Adım 7'de tespit edilen katmanlama — servis tarafı `HmnServiceException` /
+`JABSBusinessServiceNotFoundException` / `JABSRemoteException`, ekran tarafı
+`FWAbendException` / `FWScopeException` / `FWTypeException` /
+`FWInfrastructureException` — hangi katmanın hangi hatayı yuttuğunu görmeyi
+sağlar.
