@@ -537,6 +537,23 @@ $rxUse = [regex]'\b([a-z]\w*(?:Controller|Service))\s*\.\s*([a-z]\w*)\s*\('
 $rxCatch = [regex]'catch\s*\(\s*([\w\.]+)\s+(\w+)\s*\)'
 $valRx = [regex]'(?i)validate|isValid|required|mandatory|isEmpty|isBlank|\.length|matches\(|showCustomMessageBox'
 
+# Bir java/js dosyasindaki YORUM satirlarinin numaralarini dondurur.
+# Yoruma alinmis kod, calisan kod gibi raporlanirsa yanlis bulgu uretir.
+function Get-YorumSatirlari($path) {
+    $set = @{}
+    $blok = $false
+    $no = 0
+    foreach ($l in (Get-Content -LiteralPath $path)) {
+        $no++
+        $t = $l.Trim()
+        if ($blok) { $set[$no] = $true; if ($t -match '\*/') { $blok = $false }; continue }
+        if ($t -match '^/\*') { $set[$no] = $true; if ($t -notmatch '\*/') { $blok = $true }; continue }
+        if ($t.StartsWith('//') -or $t.StartsWith('*')) { $set[$no] = $true }
+    }
+    return $set
+}
+function Durum($set, $no) { if ($set.ContainsKey($no)) { return 'YORUM' } else { return 'aktif' } }
+
 # M3'un urettigi dil durumunu ekran bazinda oku (karta gomulecek)
 $langMap = @{}
 $langFile = Join-Path $O "22-lang-durumu.txt"
@@ -606,23 +623,25 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
             }
         }
         [void]$k.Add("| $($r.Event) | $($r.CtrlEvent) | $($r.NextConv) | $($r.NextTask) | $hit |")
+        # not: handler yorumdaysa "Durum" sutunu yerine dosya:satirdan bakilir
     }
 
     # --- bagimli olunan servisler (edinme) ---
     [void]$k.Add("")
     [void]$k.Add("## Bağımlı Olunan Servisler")
     [void]$k.Add("")
-    [void]$k.Add("| Servis | Mekanizma | Dosya:satır |")
-    [void]$k.Add("|---|---|---|")
+    [void]$k.Add("| Servis | Mekanizma | Durum | Dosya:satır |")
+    [void]$k.Add("|---|---|---|---|")
     foreach ($cand in @("$n.java", "${n}Super.java")) {
         $p = Join-Path $J $cand
         if (-not (Test-Path $p)) { continue }
+        $yor = Get-YorumSatirlari $p
         $ln = 0
         foreach ($line in (Get-Content -LiteralPath $p)) {
             $ln++
             foreach ($a in $rxAcq) {
                 foreach ($m in $a.R.Matches($line)) {
-                    [void]$k.Add("| $($m.Groups[1].Value) | $($a.K) | $cand`:$ln |")
+                    [void]$k.Add("| $($m.Groups[1].Value) | $($a.K) | $(Durum $yor $ln) | $cand`:$ln |")
                 }
             }
         }
@@ -632,16 +651,17 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     [void]$k.Add("")
     [void]$k.Add("## Çağrılan Servis Metotları")
     [void]$k.Add("")
-    [void]$k.Add("| Nesne | Metot | Dosya:satır |")
-    [void]$k.Add("|---|---|---|")
+    [void]$k.Add("| Nesne | Metot | Durum | Dosya:satır |")
+    [void]$k.Add("|---|---|---|---|")
     foreach ($cand in @("$n.java", "${n}Super.java")) {
         $p = Join-Path $J $cand
         if (-not (Test-Path $p)) { continue }
+        $yor = Get-YorumSatirlari $p
         $ln = 0
         foreach ($line in (Get-Content -LiteralPath $p)) {
             $ln++
             foreach ($m in $rxUse.Matches($line)) {
-                [void]$k.Add("| $($m.Groups[1].Value) | $($m.Groups[2].Value) | $cand`:$ln |")
+                [void]$k.Add("| $($m.Groups[1].Value) | $($m.Groups[2].Value) | $(Durum $yor $ln) | $cand`:$ln |")
             }
         }
     }
@@ -687,8 +707,9 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
     foreach ($p in @((Join-Path $d.FullName "$n.js"), (Join-Path $J "$n.java"))) {
         if (-not (Test-Path $p)) { continue }
         $f = Split-Path $p -Leaf
+        $yor = Get-YorumSatirlari $p
         Select-String -LiteralPath $p -Pattern $valRx | Select-Object -First 40 | ForEach-Object {
-            [void]$k.Add("- ``$f`:$($_.LineNumber)`` — $($_.Line.Trim())")
+            [void]$k.Add("- [" + (Durum $yor $_.LineNumber) + "] ``$f`:$($_.LineNumber)`` — $($_.Line.Trim())")
         }
     }
 
@@ -963,6 +984,11 @@ Adım 16         iyileştirme                  [Opus]
 
 M4 Adım 7'den sonra çalışır çünkü servis desenleri oradan türetilmişti; artık
 bloğa sabitlendiler, ek ayar gerekmiyor.
+
+Tablolardaki **Durum** sütunu `aktif` veya `YORUM` değerini alır. Yoruma
+alınmış satırlar silinmez — devre dışı bırakılmış mantık kendi başına bulgudur
+(bkz. `PG_ApplicationPricing`'deki ürün-tipi yönlendirmesi) — ama çalışan kodla
+karıştırılmaz.
 
 **Catch blokları tablosu** dayanıklılık ekseninin hammaddesi: "sonraki 2 satır"
 sütunu boşsa veya sadece `}` içeriyorsa exception sessizce yutuluyor demektir.
