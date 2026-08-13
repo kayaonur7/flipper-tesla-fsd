@@ -919,11 +919,17 @@ foreach ($k in ($sayim.Keys | Sort-Object { -$sayim[$_] })) {
 # --- B. tasiyici TIPLERI (her cast formu) ---
 [void]$out.Add(""); [void]$out.Add("===== B. tasiyici nesneler =====")
 $rxCast = [regex]'\(\s*([A-Z]\w*)\s*\)\s*\w+\.(\w*Scope\w*)\s*\('
+# JDK / jenerik tipler tasiyici degildir. Bunlar matrise girerse
+# String.MaxLength gibi widget ozellikleri "state alani" sanilir.
+$jdkTipler = @('String','Integer','Long','Short','Byte','Double','Float','Boolean',
+               'Character','Date','Timestamp','BigDecimal','BigInteger','Object',
+               'List','ArrayList','Map','HashMap','Set','HashSet','Collection')
 $tipler = @{}
 foreach ($f in $devJava) {
     foreach ($ln in (Get-Aktif2 $f.FullName)) {
         foreach ($m in $rxCast.Matches($ln.Text)) {
             $tip = $m.Groups[1].Value
+            if ($jdkTipler -contains $tip) { continue }
             if (-not $tipler.ContainsKey($tip)) { $tipler[$tip] = New-Object System.Collections.ArrayList }
             if ($tipler[$tip] -notcontains $m.Groups[2].Value) { [void]$tipler[$tip].Add($m.Groups[2].Value) }
         }
@@ -996,9 +1002,14 @@ foreach ($f in $devJava) {
 # Kapsam siniflandirmasi: gercek paylasilan state = bir ekranin yazip
 # BASKA ekranin okudugu alan. Ayni ekranin yazip okudugu alan yereldir.
 $kapsam = @{}
+# Request/Response/DTO tipleri disari GONDERILEN payload'lardir; yerel
+# okuyucusunun olmamasi normaldir, olu veri degildir.
 foreach ($key in $mat.Keys) {
     $w = @($mat[$key].W); $r = @($mat[$key].R)
+    $tipAdi = @($key -split '\.')[0]
+    $gidenDto = ($tipAdi -match '(Request|Response|DTO|Dto)$')
     if ($w.Count -eq 0)      { $kapsam[$key] = 'YAZAN-YOK' }
+    elseif ($r.Count -eq 0 -and $gidenDto) { $kapsam[$key] = 'GIDEN-DTO' }
     elseif ($r.Count -eq 0)  { $kapsam[$key] = 'OKUYAN-YOK' }
     else {
         $capraz = $false
@@ -1043,7 +1054,17 @@ $kisa = New-Object System.Collections.ArrayList
 [void]$kisa.Add("# Paylasilan state ve anomaliler")
 [void]$kisa.Add("")
 [void]$kisa.Add("LOKAL alanlar (ayni ekran yazip okuyor) bu dosyada YOK - tam liste 24-state-sozlugu.txt")
-foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK', 'DIS-KULLANIM')) {
+foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK', 'GIDEN-DTO', 'DIS-KULLANIM')) {
+    if ($grp -eq 'GIDEN-DTO') {
+        $gd = @($mat.Keys | Where-Object { $kapsam[$_] -eq 'GIDEN-DTO' } | Sort-Object)
+        [void]$kisa.Add("")
+        [void]$kisa.Add("## GIDEN-DTO  (" + $gd.Count + " alan) - yorumlanmayacak")
+        [void]$kisa.Add("")
+        [void]$kisa.Add("Servise gonderilen request/response payload alanlari. Yerel okuyucusunun")
+        [void]$kisa.Add("olmamasi normaldir - olu veri degildir. Tipler:")
+        [void]$kisa.Add((($gd | ForEach-Object { @($_ -split '\.')[0] } | Sort-Object -Unique) -join ', '))
+        continue
+    }
     if ($grp -eq 'DIS-KULLANIM') {
         # Bu grup yorumlanmiyor: entry disinda kullanildigi dogrulandi.
         # Tablo yerine tek satirlik ozet - 9a'nin context'ini yemesin.
@@ -1078,6 +1099,7 @@ Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 "  paylasilan     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'PAYLASILAN' }).Count
 "  lokal          : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'LOKAL' }).Count
 "  okuyan yok     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'OKUYAN-YOK' }).Count + "   << gercekten olu aday"
+"  giden dto      : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'GIDEN-DTO' }).Count
 "  yazan yok      : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'YAZAN-YOK' }).Count
 "  entry disinda  : " + @($mat.Keys | Where-Object { $kapsam[$_] -like '*: *' }).Count
 "24-state-sozlugu : " + $out.Count + " satir"
@@ -1089,6 +1111,13 @@ Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 > biçiminde (atama, parametre, yerel) taranıyor, ayrıca `getApplicationInfo().getX()`
 > ve `((Tip) ...).getX()` zincirleme erişimleri de yakalanıyor.
 
+> **İki gürültü filtresi** (Adım 9a çıktısından öğrenildi):
+> - JDK tipleri (`String`, `List`, `Map`, `Date`…) taşıyıcı sayılmaz. Yoksa
+>   `String.MaxLength` gibi widget özellikleri "state alanı" olarak listeleniyor.
+> - `*Request` / `*Response` / `*DTO` tipleri **`GIDEN-DTO`** olarak ayrılır.
+>   Servise gönderilen payload'ın yerel okuyucusu olmaması normaldir;
+>   `SecurityCheckRequest`'in 22 alanı bu yüzden ölü veri adayı sanılıyordu.
+>
 > **Kapsam genişletme pası.** İlk sınıflandırma yalnızca `entry/controllers`
 > altındaki 27 dev sınıfa bakıyordu ve 166 alanın 80'ini "okuyan yok" sayıyordu.
 > Bu alanların okuyucuları çoğunlukla `Super` sınıflarında, BE'ye giden DTO
