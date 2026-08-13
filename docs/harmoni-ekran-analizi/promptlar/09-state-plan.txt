@@ -90,10 +90,15 @@ inquiry, template. ACQ = Acquiring / üye işyeri.
 #file:docs/entry-akis/_tarama/17-dto.txt
 #file:docs/entry-akis/_tarama/14-yetki.txt
 #file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
+#file:docs/entry-akis/_tarama/23-acik-sorular.txt
+#file:docs/entry-akis/00b-akis.md
 
 # GÖREV
-Paylaşılan state, servis kesişimi, DTO envanteri, yetki modeli ve ikiz
-ekranlar; sonra derin analiz planı.
+Paylaşılan state, servis kesişimi, DTO envanteri, _auth.properties'in rolü ve
+ikiz ekranlar; sonra derin analiz planı.
+00b-akis.md'nin "Açık Sorular" bölümündeki maddeleri 23-acik-sorular.txt ile
+karşılaştır: hangileri kapandı, hangileri hâlâ açık? Kapananları cevabıyla
+birlikte yaz, kapanmayanları Bölüm 7'ye taşı.
 
 # YÖNTEM
 1. PAYLAŞILAN STATE — en kritik adım.

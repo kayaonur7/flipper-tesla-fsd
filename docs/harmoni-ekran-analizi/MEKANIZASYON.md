@@ -702,6 +702,98 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
 
 ---
 
+## M5 — Açık Soru Kapatıcı
+
+Adım 8'in ürettiği açık soruların çoğu deterministik: kod bağlamı, taranmamış
+bir CCT, ya da daha geniş bir arama gerektiriyor. Bu blok dördünü de kapatır ve
+`_tarama/23-acik-sorular.txt` yazar. Kalan sorular Adım 12'de ekran kartları
+okunurken cevaplanır.
+
+| Bölüm | Kapattığı soru |
+|---|---|
+| A | `setControllerEvent` çağrılarının çevresindeki if/else — hangi iş kuralı hangi token'ı seçiyor |
+| B | Entry dışındaki hedef conversation'ların TASK/TRANSITION tanımları |
+| C | Açılış noktası bulunamayan ekranların tüm repoda (xml, jsp, properties dahil) aranması |
+| D | Conversation kapanışı: `FlagEOC` geçişleri + `onFooter*` / `After_Approve` / `close` arayışı |
+
+````powershell
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$CCT = "src\main\webapp\cct"
+$SRC = "src\main"
+$O   = "docs\entry-akis\_tarama"
+if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
+if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
+
+$out = New-Object System.Collections.ArrayList
+
+# --- A. setControllerEvent baglami ---
+[void]$out.Add("===== A. setControllerEvent cagrilarinin baglami (+/- 12 satir) =====")
+foreach ($f in @(Get-ChildItem $J -File -Filter *.java)) {
+    $ls = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8)
+    for ($i = 0; $i -lt $ls.Count; $i++) {
+        if ($ls[$i] -notmatch 'setControllerEvent\s*\(') { continue }
+        $a = [Math]::Max(0, $i - 12); $b = [Math]::Min($ls.Count - 1, $i + 3)
+        [void]$out.Add("")
+        [void]$out.Add("--- " + $f.Name + ":" + ($i + 1) + " ---")
+        for ($j = $a; $j -le $b; $j++) {
+            $mark = "  "; if ($j -eq $i) { $mark = ">>" }
+            [void]$out.Add($mark + " " + ($j + 1).ToString().PadLeft(5) + "  " + $ls[$j].TrimEnd())
+        }
+    }
+}
+
+# --- B. entry disindaki hedef conversation'lar ---
+[void]$out.Add(""); [void]$out.Add("===== B. entry disindaki hedef conversation'lar =====")
+$entryConv = @($convs | ForEach-Object { [string]$_.ConvID })
+$targets = @($trans | ForEach-Object { [string]$_.NextConv } |
+    Where-Object { $_ -and ($entryConv -notcontains $_) } | Sort-Object -Unique)
+[void]$out.Add("hedef sayisi: " + $targets.Count)
+foreach ($t in $targets) {
+    [void]$out.Add(""); [void]$out.Add("--- " + $t + " ---")
+    $cf = @(Get-ChildItem $CCT -Recurse -File -Filter ($t + ".cct"))
+    if ($cf.Count -eq 0) { [void]$out.Add("  CCT DOSYASI BULUNAMADI"); continue }
+    Get-Content -LiteralPath $cf[0].FullName | Where-Object {
+        $_ -match '(PageName|PageController|TaskID|NextConvID|NextTaskID|Event|ControllerEvent|DefaultTaskID|FunctionalArea)\s*='
+    } | ForEach-Object { [void]$out.Add("  " + $_.Trim()) }
+}
+
+# --- C. acilis noktasi aramasi ---
+[void]$out.Add(""); [void]$out.Add("===== C. acilis noktasi aramasi (tum repo) =====")
+$needles = @('con_point','task_merchantpoint','PG_MerchantPoint','PG_AccountWalletPopup',
+             'PG_AddNote','PG_LoyaltyProgramRatePopup','PG_TagOperation')
+$scanFiles = @(Get-ChildItem $SRC -Recurse -File -Include *.java,*.js,*.html,*.cct,*.xml,*.properties,*.jsp)
+foreach ($needle in $needles) {
+    [void]$out.Add(""); [void]$out.Add("--- " + $needle + " ---")
+    $hits = @($scanFiles | Select-String -SimpleMatch $needle | Select-Object -First 25)
+    if ($hits.Count -eq 0) { [void]$out.Add("  HIC GECMIYOR"); continue }
+    foreach ($h in $hits) { [void]$out.Add("  " + (Split-Path $h.Path -Leaf) + ":" + $h.LineNumber + "  " + $h.Line.Trim()) }
+}
+
+# --- D. kapanis mekanizmasi ---
+[void]$out.Add(""); [void]$out.Add("===== D. kapanis mekanizmasi =====")
+[void]$out.Add("-- FlagEOC=True olan gecisler --")
+foreach ($r in @($trans | Where-Object { [string]$_.EOC -eq 'True' })) {
+    [void]$out.Add("  " + ([string]$r.FromPage).PadRight(38) + ([string]$r.Event).PadRight(24) +
+                   "-> " + ([string]$r.CtrlEvent).PadRight(26) +
+                   "next=" + [string]$r.NextConv + "/" + [string]$r.NextTask)
+}
+[void]$out.Add("")
+[void]$out.Add("-- onFooter / Approve / close arayisi --")
+foreach ($h in @(Get-ChildItem $J -File -Filter *.java |
+        Select-String -Pattern 'onFooter\w*|After_Approve|closeConversation|endConversation|finishConversation|setEndOfConversation' |
+        Select-Object -First 60)) {
+    [void]$out.Add("  " + $h.Filename + ":" + $h.LineNumber + "  " + $h.Line.Trim())
+}
+
+Set-Content "$O\23-acik-sorular.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"23-acik-sorular : " + $out.Count + " satir"
+````
+
+Çıktı Adım 9'un girdisine eklenir. Kapanmayan sorular Adım 12'nin ilgili grup
+turuna not olarak taşınır.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu
