@@ -1222,6 +1222,62 @@ metotları. Aynı veriyi tekrar tekrar çeken çağrılar da buradan görünür.
 
 ---
 
+## M9 — Kesitsel soru kapatıcı
+
+Adım 9d'den sonra açık kalan soruların bir kısmı tek bir ekrana ait değil,
+kesitseldir; Adım 12'nin ekran kartları bunları yakalamaz. Bu blok, adı geçen
+terimleri **tüm repoda** bağlamıyla arar.
+
+`$terimler` listesini kendi açık sorularına göre düzenle.
+
+````powershell
+$SRC = "src\main"
+$O   = "docs\entry-akis\_tarama"
+$terimler = @(
+    'event236608',
+    'Con_applicationpricing',
+    'Con_acqapplicationpricing',
+    'auth.properties',
+    'IsPosCepFlag',
+    'PosCep'
+)
+
+$scan = @(Get-ChildItem $SRC -Recurse -File -Include *.java,*.js,*.html,*.cct,*.xml,*.properties,*.jsp,*.json)
+"taranan dosya: " + $scan.Count
+
+$out = New-Object System.Collections.ArrayList
+foreach ($t in $terimler) {
+    [void]$out.Add("")
+    [void]$out.Add("===== " + $t + " =====")
+    $hits = @($scan | Select-String -SimpleMatch $t)
+    if ($hits.Count -eq 0) { [void]$out.Add("  HIC GECMIYOR"); continue }
+    [void]$out.Add("  toplam " + $hits.Count + " gecis, ilk 20 gosteriliyor")
+    foreach ($h in ($hits | Select-Object -First 20)) {
+        $rel = Resolve-Path -Relative $h.Path
+        [void]$out.Add("")
+        [void]$out.Add("  --- " + $rel + ":" + $h.LineNumber + " ---")
+        $ls = @(Get-Content -LiteralPath $h.Path)
+        $a = [Math]::Max(0, $h.LineNumber - 3); $b = [Math]::Min($ls.Count - 1, $h.LineNumber + 1)
+        for ($ix = $a; $ix -le $b; $ix++) {
+            $mark = "  "; if (($ix + 1) -eq $h.LineNumber) { $mark = ">>" }
+            [void]$out.Add("  " + $mark + " " + ($ix + 1).ToString().PadLeft(5) + "  " + $ls[$ix].TrimEnd())
+        }
+    }
+}
+
+Set-Content "$O\26-kesitsel-sorular.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"26-kesitsel-sorular : " + $out.Count + " satir"
+````
+
+`HIC GECMIYOR` çıkan terim kendi başına cevaptır: o şey repoda yok, yani
+ya başka modülde ya da gerçekten ölü.
+
+Çıktı Adım 16'nın girdisine eklenir; kapanan sorular `00c3-plan.md`'de elle
+işaretlenir veya 9d tekrar çalıştırılır (girdiye `26-kesitsel-sorular.txt`
+eklenerek).
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu
