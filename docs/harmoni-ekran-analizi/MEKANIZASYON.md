@@ -1045,10 +1045,18 @@ $kisa = New-Object System.Collections.ArrayList
 [void]$kisa.Add("LOKAL alanlar (ayni ekran yazip okuyor) bu dosyada YOK - tam liste 24-state-sozlugu.txt")
 foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK', 'DIS-KULLANIM')) {
     if ($grp -eq 'DIS-KULLANIM') {
-        $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -like 'OKUYAN: *' -or $kapsam[$_] -like 'YAZAN: *' } | Sort-Object)
-    } else {
-        $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -eq $grp } | Sort-Object)
+        # Bu grup yorumlanmiyor: entry disinda kullanildigi dogrulandi.
+        # Tablo yerine tek satirlik ozet - 9a'nin context'ini yemesin.
+        $dk = @($mat.Keys | Where-Object { $kapsam[$_] -like 'OKUYAN: *' -or $kapsam[$_] -like 'YAZAN: *' } | Sort-Object)
+        [void]$kisa.Add("")
+        [void]$kisa.Add("## DIS-KULLANIM  (" + $dk.Count + " alan) - yorumlanmayacak")
+        [void]$kisa.Add("")
+        [void]$kisa.Add("Entry disinda okundugu/yazildigi dogrulandi (Super siniflar, DTO eslemesi,")
+        [void]$kisa.Add("diger ekranlar). Alan adlari:")
+        [void]$kisa.Add((($dk | ForEach-Object { @($_ -split '\.')[-1] } | Sort-Object -Unique) -join ', '))
+        continue
     }
+    $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -eq $grp } | Sort-Object)
     [void]$kisa.Add("")
     [void]$kisa.Add("## " + $grp + "  (" + $satirlar.Count + " alan)")
     [void]$kisa.Add("")
