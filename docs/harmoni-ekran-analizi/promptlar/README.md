@@ -6,6 +6,13 @@ birleştirilmiş. Ayrıca bir şey eklemene gerek yok.
 Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e yapıştır.
 **Her adım yeni chat'te.**
 
+> **Girdilerin yüklendiğini doğrula.** Prompt içindeki `#file:` satırları
+> yalnızca çözümlenirse dosyayı ekler; çözümlenmezse model elindekiyle idare
+> eder ve uydurabilir. Gönderdikten sonra yanıtın başında "Reviewed N files"
+> satırını ve girdi kutusunun üstünde dosya rozetlerini gör. Ayrıca her prompt
+> artık ilk iş olarak girdi dosyalarının satır sayısını bildiriyor — o liste
+> gelmiyorsa veya "GİRDİ YÜKLENMEDİ" yazıyorsa turu iptal et.
+
 | Dosya | Adım | Model | Çıktı |
 |---|---|---|---|
 | `07-envanter.txt` | Envanter + konvansiyon türetme | Sonnet | `00a-envanter.md` |

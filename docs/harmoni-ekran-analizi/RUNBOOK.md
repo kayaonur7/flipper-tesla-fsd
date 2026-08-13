@@ -527,6 +527,11 @@ Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchop
 inquiry, template. ACQ = Acquiring / üye işyeri.
 
 # ÇALIŞMA DİSİPLİNİ
+- İLK İŞ — GİRDİ KONTROLÜ: Göreve başlamadan önce # GİRDİ bölümündeki her
+  dosyayı aç ve tek satırda bildir:
+      <dosya adı> : <satır sayısı> satır — <ilk başlığı>
+  Açamadığın veya bulamadığın dosya varsa DUR, "GİRDİ YÜKLENMEDİ: <dosya>"
+  yaz ve göreve BAŞLAMA. Eksik girdiyle üretilen çıktı işe yaramaz.
 - docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
   dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
 - Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
