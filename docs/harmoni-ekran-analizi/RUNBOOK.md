@@ -402,7 +402,14 @@ Get-ChildItem $O -Filter *.txt | Sort-Object Name | ForEach-Object {
 20 dosya olmalı. `<< BOS` olanı **silme** — promptlar boş taramayı "TARAMA BOŞ"
 diye işaretleyip devam edecek şekilde yazıldı.
 
-PowerShell bitti.
+PowerShell taramaları bitti.
+
+> ## ► Buradan [MEKANIZASYON.md](./MEKANIZASYON.md)'ye geç
+>
+> Aşağıdaki Copilot adımlarına doğrudan girebilirsin, ama önce M1-M4
+> bloklarını çalıştırmak akış grafiğini, olay↔handler eşlemesini, dil
+> durumunu ve ekran kartlarının %70'ini script'e ürettirir. Adım 8 ve 12
+> orada kısaltılmış hâlleriyle veriliyor ve Opus turu 16'dan 5-6'ya iner.
 
 ---
 

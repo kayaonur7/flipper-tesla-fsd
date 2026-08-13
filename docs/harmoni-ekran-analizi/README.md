@@ -6,17 +6,20 @@ için hazırlanmış prompt setini içerir.
 > ## ► Buradan başla: [RUNBOOK.md](./RUNBOOK.md)
 >
 > `entry` akışını tek geçişte bitirmek için doğrusal koşu: sırayla
-> yapıştırılacak 6 PowerShell bloğu ve 8 Copilot prompt'u, hepsi içinde.
-> Başka dosya açmana gerek yok.
+> yapıştırılacak PowerShell blokları ve Copilot prompt'ları, hepsi içinde.
+>
+> Adım 6'yı bitirdikten sonra [MEKANIZASYON.md](./MEKANIZASYON.md)'ye geç —
+> kalan işin büyük kısmını script'e devredip Copilot maliyetini beşte birine
+> indirir.
 
 Diğer dosyalar:
 
 | Dosya | Ne işe yarar |
 |---|---|
-| [RUNBOOK.md](./RUNBOOK.md) | **Doğrusal koşu.** Uçtan uca tek geçiş için izlenecek yol |
-| [PROMPTS.md](./PROMPTS.md) | Referans: blokların ayrıntılı sürümü, tek ekran modu, çok büyük ekran bölme, alternatif çalıştırma yolları |
+| [RUNBOOK.md](./RUNBOOK.md) | **Doğrusal koşu.** Adım 0-6 PowerShell taramaları, Adım 7-16 Copilot turları |
+| [MEKANIZASYON.md](./MEKANIZASYON.md) | **Maliyet düşürücü.** Çıkarımı script'e devreder: CCT'den otomatik akış grafiği, olay↔handler eşlemesi, dil durumu, ön-doldurulmuş ekran kartları. Opus turunu 16'dan 5-6'ya indirir |
+| [PROMPTS.md](./PROMPTS.md) | Referans: blokların ayrıntılı sürümü, tek ekran modu, çok büyük ekran bölme |
 | Bu dosya | Arka plan: tasarım gerekçeleri, ortam kurulumu, sorun giderme |
-| [scripts/](./scripts) | Ön-tarama script'leri (script çalıştırma izni olan ortamlar için) |
 
 **Hedef akış:** `cct/page/acq/entry` — 14 alt ekrandan oluşan üye işyeri başvuru
 akışı.
