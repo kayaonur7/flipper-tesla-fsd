@@ -105,9 +105,15 @@ hangi akışa ait, neden buradan çağrılıyor.
 ## 4. Include Haritası
 ## 5. Giriş ve Çıkış Noktaları
 ## 6. Grafikteki Anomaliler
-Boş NextConvID/NextTaskID ile biten çıkmazlar; hiçbir geçişin hedefi olmayan
-TASK'lar; handler'ı bulunamayan ControllerEvent'ler; aynı TASK'ın birden çok
-conversation'da geçmesi — her biri için neden ve risk.
+21-event-handler.txt'deki `<< BULGU` satırlarını yorumla — bunlar script
+tarafından doğrulandı, yeniden tespit etmeye çalışma:
+- `ULASILAMAZ` token: CCT'de tanımlı ama kodun hiç üretmediği geçiş
+- `OLU SONUC` token: kodun ürettiği ama hiçbir geçişin beklemediği sonuç —
+  kullanıcı o noktada takılıyor olabilir
+- `YOK` handler: CCT olayının karşılığı olan metot bulunamadı
+Ayrıca grafikten: boş NextConvID/NextTaskID ile biten çıkmazlar; hiçbir
+geçişin hedefi olmayan TASK'lar; aynı TASK'ın birden çok conversation'da
+geçmesi. Her biri için neden ve risk yaz.
 ## 7. Açık Sorular
 
 # KURAL
