@@ -844,6 +844,7 @@ Grafik zaten üretildi. Prompt kısalıyor:
 #file:docs/entry-akis/_tarama/21-event-handler.txt
 #file:docs/entry-akis/_tarama/20-include.txt
 #file:docs/entry-akis/_tarama/18-disaridan-cagrilar.txt
+#file:docs/entry-akis/_tarama/23-acik-sorular.txt
 
 # GÖREV
 Grafik ve tablolar script tarafından CCT'den üretildi; DOĞRU kabul et,
@@ -872,6 +873,10 @@ Ayrıca grafikten: boş NextConvID/NextTaskID ile biten çıkmazlar; hiçbir
 geçişin hedefi olmayan TASK'lar; aynı TASK'ın birden çok conversation'da
 geçmesi. Her biri için neden ve risk yaz.
 ## 7. Açık Sorular
+23-acik-sorular.txt zaten dört kategoride cevap içeriyor: setControllerEvent
+çağrılarının bağlamı, entry dışı conversation tanımları, açılış noktası
+aramaları, kapanış mekanizması. Soru yazmadan önce oraya bak — cevabı varsa
+soru değil, bulgudur. Sadece o dosyada da cevabı olmayanları listele.
 
 # KURAL
 Tabloları tekrar etme, üzerine yorum yap. İyileştirme yazma.
