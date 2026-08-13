@@ -533,6 +533,10 @@ inquiry, template. ACQ = Acquiring / üye işyeri.
 - Aynı dosyayı iki kez okuma.
 - Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
 - Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Bir girdi dosyasının hatalı/eksik/yanlış olduğunu İDDİA EDECEKSEN önce
+  ondan ALINTI yap: ilk 3 satırı ve satır sayısını yaz. Alıntı yapamıyorsan
+  iddiayı yazma ve görevi dosyanın gerçek içeriğiyle yap. Bir dosyanın
+  bozuk olduğunu varsayıp görevi atlamak YASAK.
 - Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
 - Türkçe yaz, teknik terimleri İngilizce bırak.
 ```
@@ -815,6 +819,53 @@ Plana göre hangi grup en yüksek belirsizlik taşıyor, neden
 
 # KURAL
 İyileştirme yazma. Grup planı Adım 12'nin girdisi — özenli ol.
+```
+
+---
+
+## [CP] Adım 9d — Açık soruları kapat
+
+Yeni chat, **Sonnet**. Yalnızca 9c'nin soru bölümü hatalıysa çalıştırılır.
+
+```
+# GİRDİ
+#file:docs/entry-akis/00c3-plan.md
+#file:docs/entry-akis/_tarama/23-acik-sorular.txt
+
+# UYARI
+23-acik-sorular.txt GEÇERLİ bir dosyadır, 689 satırdır ve dört bölüm içerir:
+  A. setControllerEvent cagrilarinin baglami (+/- 12 satir)
+  B. entry disindaki hedef conversation'lar
+  C. acilis noktasi aramasi (tum repo)
+  D. kapanis mekanizmasi
+Önceki tur bu dosyayı başka bir dosyayla karıştırdığını iddia edip soruların
+hiçbirini kontrol etmedi. Bu iddia YANLIŞTI. Dosyayı aç, dört bölüm başlığını
+gördüğünü teyit et, sonra devam et.
+
+# GÖREV
+00c3-plan.md'deki 20 açık sorunun her birini 23-acik-sorular.txt ile
+karşılaştır. Cevabı dosyada VARSA kapat.
+
+Hangi soru hangi bölümden cevaplanır:
+- "hangi iş kuralı hangi token'ı seçiyor" tipi → A
+- "şu conversation taranmadı" tipi → B
+- "şu ekran nereden açılıyor" tipi → C
+- "conversation nasıl kapanıyor / EOC nerede" tipi → D
+
+# ÇIKTI — docs/entry-akis/00c3-plan.md dosyasındaki "2. Açık Soru Durumu"
+bölümünü YERİNDE GÜNCELLE. Diğer bölümlere dokunma.
+
+| # | Soru | Durum | Cevap ve kanıt | Kim cevaplayacak |
+Durum: KAPANDI / AÇIK
+KAPANDI ise "Cevap ve kanıt" sütununa 23-acik-sorular.txt'deki bölüm ve
+somut satırı yaz.
+AÇIK ise "Kim cevaplayacak": Adım 12 (ekran kartı okurken) / insan (iş bilgisi).
+
+Sonuna tek satır: "KAPANDI: N / 20".
+
+# KURAL
+Her soruyu tek tek ele al, toplu "hepsi açık" deme.
+İyileştirme yazma.
 ```
 
 ---

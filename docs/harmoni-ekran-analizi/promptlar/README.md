@@ -13,6 +13,7 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 | `09a-state.txt` | Paylaşılan state'i yorumla (M7 üretir) | Sonnet | `00c1-state.md` |
 | `09b-servis-dto.txt` | Servis, DTO, auth, ikizler | Sonnet | `00c2-servis-dto.md` |
 | `09c-plan.txt` | Grup planı + açık soru kapanışı | Sonnet | `00c3-plan.md` |
+| `09d-sorular.txt` | Açık soruları kapat (9c'nin soru bölümü hatalıysa) | Sonnet | `00c3-plan.md` güncellenir |
 | `10-dogrulama.txt` | Doğrulama | Sonnet | ilgili dosyaya düzeltme |
 | `12-ekran-karti.txt` | Ekran kartı tamamlama | Sonnet | `ekranlar/*.hazir.md` |
 | `13-konsolidasyon.txt` | Konsolidasyon | Sonnet | `90-konsolidasyon.md` |

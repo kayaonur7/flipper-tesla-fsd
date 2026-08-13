@@ -78,6 +78,10 @@ inquiry, template. ACQ = Acquiring / üye işyeri.
 - Aynı dosyayı iki kez okuma.
 - Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
 - Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Bir girdi dosyasının hatalı/eksik/yanlış olduğunu İDDİA EDECEKSEN önce
+  ondan ALINTI yap: ilk 3 satırı ve satır sayısını yaz. Alıntı yapamıyorsan
+  iddiayı yazma ve görevi dosyanın gerçek içeriğiyle yap. Bir dosyanın
+  bozuk olduğunu varsayıp görevi atlamak YASAK.
 - Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
 - Türkçe yaz, teknik terimleri İngilizce bırak.
 
