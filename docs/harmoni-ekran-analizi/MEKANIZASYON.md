@@ -203,54 +203,59 @@ Set-Content "docs\entry-akis\00b-akis-otomatik.md" -Value ($md -join "`r`n") -En
 
 ## M2 — Olay ↔ handler eşlemesi
 
-**Önce M0.**
-
 CCT'deki her `ControllerEvent` için java tarafında karşılığı var mı, ve tersi:
 koddaki `onXxx` metotlarından CCT'de tanımsız olan hangileri.
 
 ````powershell
-# Kokler + bellekte yoksa CSV'den yukle (M0 baska terminalde calismis olabilir)
-$W   = "src\main\webapp\page\acq\application\entry"
-$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
-$CCT = "src\main\webapp\cct"
-$O   = "docs\entry-akis\_tarama"
-if (-not $tasks -or @($tasks).Count -eq 0) {
-    $convs = @(Import-Csv "$O\cct-convs.csv"); $tasks = @(Import-Csv "$O\cct-tasks.csv"); $trans = @(Import-Csv "$O\cct-trans.csv")
-    "CSV'den yuklendi: conv={0} task={1} trans={2}" -f $convs.Count, $tasks.Count, $trans.Count
-}
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O = "docs\entry-akis\_tarama"
+if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
+"trans kayit : " + @($trans).Count
 
 $rows = New-Object System.Collections.ArrayList
 [void]$rows.Add("=== CCT olayi -> java handler ===")
-foreach ($r in ($trans | Sort-Object FromPage, CtrlEvent)) {
-    if (-not $r.CtrlEvent) { continue }
-    $cls = $r.FromPage
-    $hit = $null
-    foreach ($cand in @("$cls.java", "${cls}Super.java")) {
+foreach ($r in @($trans)) {
+    $ev  = [string]$r.CtrlEvent
+    $cls = [string]$r.FromPage
+    if ([string]::IsNullOrWhiteSpace($ev))  { continue }
+    if ([string]::IsNullOrWhiteSpace($cls)) { continue }
+    $hit = 'BULUNAMADI'
+    foreach ($cand in @(($cls + '.java'), ($cls + 'Super.java'))) {
         $p = Join-Path $J $cand
-        if (Test-Path $p) {
-            $m = Select-String -LiteralPath $p -Pattern ("\b" + [regex]::Escape($r.CtrlEvent) + "\s*\(")
-            if ($m) { $hit = "{0}:{1}" -f $cand, $m[0].LineNumber; break }
-        }
+        if (-not (Test-Path $p)) { continue }
+        $hits = @(Select-String -LiteralPath $p -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue)
+        if ($hits.Count -gt 0) { $hit = $cand + ':' + $hits[0].LineNumber; break }
     }
-    $h = if ($hit) { $hit } else { 'BULUNAMADI' }
-    [void]$rows.Add("{0,-38} {1,-22} {2}" -f $cls, $r.CtrlEvent, $h)
+    [void]$rows.Add(($cls.PadRight(40) + $ev.PadRight(24) + $hit))
 }
 
 [void]$rows.Add("")
 [void]$rows.Add("=== koddaki onXxx metotlari -> CCT'de var mi ===")
-$cctEvents = @($trans | ForEach-Object { $_.CtrlEvent }) + @($trans | ForEach-Object { $_.Event })
-$cctEvents = @($cctEvents | Where-Object { $_ } | Sort-Object -Unique)
-Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' } | ForEach-Object {
-    $fn = $_.Name
-    Select-String -LiteralPath $_.FullName -Pattern '\b(on[A-Z][A-Za-z0-9_]*)\s*\(' | ForEach-Object {
-        $ev = $_.Matches[0].Groups[1].Value
-        $st = if ($cctEvents -contains $ev) { 'CCT-de var' } else { 'CCT-DE TANIMSIZ' }
-        [void]$rows.Add("{0,-38} {1,-22} {2}  ({3}:{4})" -f $_.Filename, $ev, $st, $fn, $_.LineNumber)
+$cctEvents = @()
+foreach ($r in @($trans)) {
+    if ($r.CtrlEvent) { $cctEvents += [string]$r.CtrlEvent }
+    if ($r.Event)     { $cctEvents += [string]$r.Event }
+}
+$cctEvents = @($cctEvents | Sort-Object -Unique)
+
+foreach ($f in @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })) {
+    foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern '\b(on[A-Z][A-Za-z0-9_]*)\s*\(' -ErrorAction SilentlyContinue)) {
+        $ev = ''
+        if ($h.Matches -and @($h.Matches).Count -gt 0) { $ev = @($h.Matches)[0].Groups[1].Value }
+        if (-not $ev) { continue }
+        $st = 'CCT-DE TANIMSIZ'
+        if ($cctEvents -contains $ev) { $st = 'CCT-de var' }
+        [void]$rows.Add(($f.Name.PadRight(40) + $ev.PadRight(24) + $st + '  (satir ' + $h.LineNumber + ')'))
     }
 }
+
 Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
 "21-event-handler : " + $rows.Count + " satir"
 ````
+
+> Bu blok bilerek `-f` biçimlendirmesi ve `[0]` indekslemesi kullanmıyor —
+> ilk sürüm "Index must be greater than or equal to zero" hatası veriyordu.
+> Aynı savunmacı yazım M4'te de geçerli.
 
 ---
 
