@@ -77,11 +77,11 @@ Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 | Birden çok conversation'da geçen TASK | `PG_MerchantSecurityCheck`, `PG_PricingTrioEdit` |
 | `_auth.properties` | 15 dosyanın 14'ü **boş**. Dolu olan tek dosya (`PG_TerminalInfo`) **validasyon hata mesajları** içeriyor, yetki tanımı değil — dosyanın rolü doğrulanmadı |
 
-### M2'nin doğruladığı bulgular
+### Doğrulanmış bulgular
 
-Mekanizasyon M2 bloğunun ürettiği, kapsam artefaktları elenmiş bulgu seti.
-Hiç Copilot turu harcanmadan çıktı; Adım 16'da kanıtı hazır girdi olarak
-kullanılacak, model bunları yeniden keşfetmeye çalışmamalı.
+Mekanizasyon bloklarının (M2, M5, M9) ürettiği, kapsam artefaktları elenmiş
+bulgu seti. Hiç Copilot turu harcanmadan çıktı; Adım 16'da kanıtı hazır girdi
+olarak kullanılacak, model bunları yeniden keşfetmeye çalışmamalı.
 
 | # | Bulgu | Kanıt |
 |---|---|---|
@@ -89,6 +89,9 @@ kullanılacak, model bunları yeniden keşfetmeye çalışmamalı.
 | 2 | **7 adet `setControllerEvent` çağrısı yoruma alınmış.** En belirgini: ürün tipine göre yönlendirme — `merchantHasTrioProduct` → `GO_TO_PRICING`, `merchantHasNonVirtualPosProduct` → `GO_TO_TERMINAL`, aksi hâlde `GOTO_PRODUCTAUTH` dallanmasının tamamı yorum satırında — hem `onBackClicked` hem `onNextClicked` içinde | `PG_ApplicationPricing.java:1142-1149`, `:1156+`, `PG_ApplicationPricingTrio.java:576` |
 | 3 | `con_point` / `task_merchantpoint` conversation'ının **çağıran tarafı bulunamadı**. Sınıf, CCT ve sayfa tanımı mevcut (`Con_point.java`, `con_acqpoint.cct`, `PG_MerchantPoint`), ancak repo genelinde hiçbir çağrı yok — muhtemelen başka bir modüldeki menü tanımından açılıyor | M5 bölüm C |
 | 4 | Handler'ı olmayan 3 CCT olayı | `PG_MerchantUpdate`: `onTblProductsClicked`, `onTrioTableCellClicked`, `onBtnAddNewProduct` |
+| 5 | **`Con_applicationpricing` yetim sınıf.** Repo genelinde 4 geçişinin tamamı kendi dosyalarında (`Con_applicationpricing.java` + `Super`); hiçbir CCT ve hiçbir sınıf referanslamıyor. Kullanılan sürüm `Con_acqapplicationpricing` (40 geçiş) | M9 |
+| 6 | **`_auth.properties` bu repoda hiç okunmuyor.** `auth.properties` dizgesi tüm kaynak ağacında geçmiyor; yükleyen varsa framework jar'ında, isim konvansiyonuyla. 15 dosyanın 14'ü boş, dolusunda validasyon hata mesajı var → kullanılmayan/yanlış kullanılan framework konvansiyonu | M9 + `14-yetki.txt` |
+| 7 | **Yoruma alınmış yönlendirme Pricing/Trio ailesinin tamamına yayılmış** — tek ekrana özel değil (`YORUMDA=7`) | 9c risk değerlendirmesi |
 
 **Düzeltme:** 2 numaralı bulgu ilk taramada "kodun ürettiği ama hiçbir geçişin
 beklemediği ölü sonuç" olarak kaydedilmişti. M5'in bağlam dökümü gösterdi ki
