@@ -321,6 +321,68 @@ Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
 "21-event-handler : " + $rows.Count + " satir"
 ````
 
+### M2-B2 — `setControllerEvent` overload'ı
+
+İlk çalıştırmada `DEGISKEN` olarak işaretlenen satırlar bir tarama açığını
+ortaya çıkardı: framework'ün **iki argümanlı** bir overload'ı var —
+`setControllerEvent(eventData, "TOKEN")`. Tek argüman varsayan regex bu formu
+kaçırıyor, dolayısıyla `OLU SONUC` sayısı olduğundan düşük görünüyor.
+
+Bu blok tüm çağrı formlarını yakalar, argüman listesindeki **son** token'ı alır
+ve sabit yerine değişken geçirilmişse aynı dosyadaki atamasından çözmeye çalışır.
+
+````powershell
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$CCT = "src\main\webapp\cct"; $O = "docs\entry-akis\_tarama"
+if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
+$tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Sort-Object -Unique)
+$cctFiles = @(Get-ChildItem $CCT -Recurse -File -Filter *.cct)
+
+$rxCall = [regex]'setControllerEvent\s*\(([^;]*)\)'
+$rxTok  = [regex]'([A-Z][A-Z0-9_]{2,})'
+$sum = @{ E = 0; D = 0; Y = 0; V = 0 }
+foreach ($f in @(Get-ChildItem $J -File -Filter *.java)) {
+    $lines = Get-Content -LiteralPath $f.FullName
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $m = $rxCall.Match($lines[$i]); if (-not $m.Success) { continue }
+        $argList = $m.Groups[1].Value
+        $toks = @($rxTok.Matches($argList) | ForEach-Object { $_.Groups[1].Value })
+        if ($toks.Count -eq 0) {
+            $v = ''
+            $lastId = [regex]::Match($argList, '([A-Za-z_]\w*)\s*$')
+            if ($lastId.Success) {
+                $vn = $lastId.Groups[1].Value
+                $asg = @($lines | Select-String -Pattern ('\b' + [regex]::Escape($vn) + '\s*=\s*[^;]*?([A-Z][A-Z0-9_]{2,})'))
+                if ($asg.Count -gt 0) { $v = [regex]::Match($asg[0].Line, '([A-Z][A-Z0-9_]{2,})').Groups[1].Value }
+            }
+            if ($v) { $toks = @($v) }
+            else { $sum.V++; "  DEGISKEN   " + $argList.Trim() + "   " + $f.Name + ":" + ($i + 1); continue }
+        }
+        $tok = $toks[-1]
+        if ($tokens -contains $tok) { $sum.E++; continue }
+        $inOther = $false
+        foreach ($c in $cctFiles) {
+            if ((Get-Content -LiteralPath $c.FullName -Raw) -match ('ControllerEvent="' + [regex]::Escape($tok) + '"')) { $inOther = $true; break }
+        }
+        if ($inOther) { $sum.D++; "  DIS CCT    " + $tok.PadRight(28) + $f.Name + ":" + ($i + 1) }
+        else          { $sum.Y++; "  OLU SONUC  " + $tok.PadRight(28) + $f.Name + ":" + ($i + 1) + "   << BULGU" }
+    }
+}
+"ozet: entry-cct={0} dis-cct={1} OLU-SONUC={2} cozulemeyen-degisken={3}" -f $sum.E, $sum.D, $sum.Y, $sum.V
+````
+
+### Bulguları çıkarma
+
+````powershell
+$O = "docs\entry-akis\_tarama"
+Select-String -LiteralPath "$O\21-event-handler.txt" -SimpleMatch "<< BULGU" | ForEach-Object { "  " + $_.Line }
+Select-String -LiteralPath "$O\21-event-handler.txt" -SimpleMatch "DEGISKEN"  | ForEach-Object { "  " + $_.Line }
+````
+
+> `$O` tanımlı değilse `Select-String` yolu `D:\21-event-handler.txt` olarak
+> çözer ve "cannot be read" hatası verir. Blokların başındaki kök tanımlarını
+> atlama.
+
 ---
 
 ## M3 — Dil durumu
