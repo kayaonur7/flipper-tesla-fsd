@@ -438,6 +438,18 @@ webapp\page\acq\application\entry\PG_X\
     PG_X_auth.properties       yetki tanımı
     PG_X_lang_en.json / PG_X_lang_tr.json
 
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+
 ## CCT — akışın kaynağı
 CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
   └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)

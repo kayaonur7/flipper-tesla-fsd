@@ -201,162 +201,100 @@ Set-Content "docs\entry-akis\00b-akis-otomatik.md" -Value ($md -join "`r`n") -En
 
 ---
 
-## M2 — Olay ↔ handler eşlemesi (sınıflandırmalı)
+## M2 — Olay modeli tutarlılığı
 
-Her CCT olayını ve her `onXxx` metodunu **sınıflandırır**. Ham "bulunamadı"
-listesi yanıltıcıydı: handler `PG_` sınıfında değil `Con_` conversation
-controller'ında olabiliyor, ve CCT'de olmayan bir `onXxx` ölü değil js/html'den
-çağrılıyor olabiliyor. Bu sürüm ikisini de ayırır, modele yalnızca gerçekten
-incelenmesi gereken kısa liste kalır.
+> **Önemli:** `ControllerEvent` bir handler metodu **değildir**. Geçişin sonuç
+> token'ıdır; sayfa controller'ı çalışma zamanında
+> `eventData.setControllerEvent(TOKEN)` ile üretir, framework bu token'a bakıp
+> hangi `TRANSITION`'ın işleyeceğine karar verir. Token sabit olarak tanımlı
+> olabilir (`STAY_ON_PAGE`, `PricingConstants.STAY_ON_PAGE`).
+>
+> İlk sürüm bu ismi metot sanıp arıyordu ve 71 geçişin 60'ını "bulunamadı"
+> diye işaretliyordu — tamamı yanlış alarmdı.
 
-| Etiket | Anlamı |
-|---|---|
-| `PG` | Handler sayfa sınıfında bulundu |
-| `CON` | Handler conversation controller'ında bulundu |
-| `YOK` | Hiçbir yerde yok — **incelenecek** |
-| `CCT` | `onXxx` CCT'de tanımlı |
-| `UI` | Ekranın js/html dosyasında geçiyor |
-| `KOD` | Java içinden çağrılıyor |
-| `OLU?` | Hiçbir referansı yok — **incelenecek** |
+Bu blok üç tutarlılık kontrolü yapar:
+
+| Bölüm | Kontrol | Bulgu |
+|---|---|---|
+| A | CCT'deki her `ControllerEvent` token'ı kodda üretiliyor mu | `URETILMIYOR` → **ulaşılamayan geçiş** |
+| B | Kodda `setControllerEvent(X)` ile üretilen her token CCT'de bekleniyor mu | `CCT-DE YOK` → **ölü sonuç**, kullanıcı takılır |
+| C | CCT'deki `Event` için `onXxx` handler'ı var mı | `YOK` → eksik handler |
 
 ````powershell
 $J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
 $W = "src\main\webapp\page\acq\application\entry"
 $O = "docs\entry-akis\_tarama"
 if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
-if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
 
-# ConvID -> Con_ sinif adi
-$convClass = @{}
-foreach ($c in @($convs)) {
-    $ctrl = [string]$c.Controller
-    if ($ctrl) { $convClass[[string]$c.ConvID] = @($ctrl -split '\.')[-1] }
-}
-
-function Find-Method($file, $name) {
-    if (-not (Test-Path $file)) { return $null }
-    $h = @(Select-String -LiteralPath $file -Pattern ('\b' + [regex]::Escape($name) + '\s*\(') -ErrorAction SilentlyContinue)
-    if ($h.Count -gt 0) { return ((Split-Path $file -Leaf) + ':' + $h[0].LineNumber) }
-    return $null
-}
-
+$javaFiles = @(Get-ChildItem $J -File -Filter *.java)
 $rows = New-Object System.Collections.ArrayList
-$sayac = @{ PG = 0; CON = 0; YOK = 0 }
-[void]$rows.Add("=== CCT olayi -> handler ===")
-[void]$rows.Add("PG   : handler sayfa sinifinda")
-[void]$rows.Add("CON  : handler conversation controller'inda")
-[void]$rows.Add("YOK  : hicbir yerde bulunamadi  << incelenecek")
+
+# --- A: CCT'deki ControllerEvent token'i kodda uretiliyor mu ---
+[void]$rows.Add("=== A. CCT ControllerEvent token'i kodda uretiliyor mu ===")
+[void]$rows.Add("URETILIYOR   : token kodda geciyor")
+[void]$rows.Add("URETILMIYOR  : hicbir yerde uretilmiyor -> ULASILAMAYAN GECIS")
 [void]$rows.Add("")
-foreach ($r in @($trans)) {
-    $ev  = [string]$r.CtrlEvent
-    $cls = [string]$r.FromPage
+$tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Sort-Object -Unique)
+$sA = @{ VAR = 0; YOK = 0 }
+foreach ($t in $tokens) {
+    $h = @($javaFiles | Select-String -Pattern ('\b' + [regex]::Escape($t) + '\b') -ErrorAction SilentlyContinue)
+    if ($h.Count -gt 0) {
+        $sA.VAR++
+        [void]$rows.Add(('URETILIYOR '.PadRight(14) + $t.PadRight(34) + $h.Count.ToString().PadLeft(4) + ' yer  ilk: ' + $h[0].Filename + ':' + $h[0].LineNumber))
+    } else {
+        $sA.YOK++
+        [void]$rows.Add(('URETILMIYOR'.PadRight(14) + $t))
+    }
+}
+
+# --- B: koddaki setControllerEvent(...) CCT'de tanimli mi ---
+[void]$rows.Add("")
+[void]$rows.Add("=== B. kodda uretilen token CCT'de tanimli mi ===")
+[void]$rows.Add("ESLESTI   : CCT'de bu token'i bekleyen bir TRANSITION var")
+[void]$rows.Add("CCT-DE YOK: hicbir gecis bu token'i beklemiyor -> OLU SONUC")
+[void]$rows.Add("DEGISKEN  : arguman sabit degil, elle incelenmeli")
+[void]$rows.Add("")
+$rxSet = [regex]'setControllerEvent\s*\(\s*([^)]*?)\s*\)'
+$sB = @{ OK = 0; YOK = 0; DEG = 0 }
+foreach ($f in $javaFiles) {
+    foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern 'setControllerEvent\s*\(' -ErrorAction SilentlyContinue)) {
+        $m = $rxSet.Match([string]$h.Line)
+        if (-not $m.Success) { continue }
+        $arg = $m.Groups[1].Value.Trim().Trim('"')
+        if ($arg.Contains('.')) { $arg = @($arg -split '\.')[-1] }
+        $arg = $arg.Trim()
+        if (-not $arg) { continue }
+        if ($arg -cmatch '^[a-z]') { $sB.DEG++; [void]$rows.Add(('DEGISKEN  '.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)); continue }
+        if ($tokens -contains $arg) { $sB.OK++;  [void]$rows.Add(('ESLESTI   '.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)) }
+        else                        { $sB.YOK++; [void]$rows.Add(('CCT-DE YOK'.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)) }
+    }
+}
+
+# --- C: CCT Event (ACTION/DECISION) -> onXxx handler ---
+[void]$rows.Add("")
+[void]$rows.Add("=== C. CCT Event -> handler ===")
+[void]$rows.Add("")
+$sC = @{ VAR = 0; YOK = 0 }
+foreach ($e in @($trans | Select-Object FromPage, Event -Unique)) {
+    $ev = [string]$e.Event; $cls = [string]$e.FromPage
     if ([string]::IsNullOrWhiteSpace($ev) -or [string]::IsNullOrWhiteSpace($cls)) { continue }
-    $hit = $null; $kind = 'YOK'
+    $hit = $null
     foreach ($cand in @(($cls + '.java'), ($cls + 'Super.java'))) {
-        $hit = Find-Method (Join-Path $J $cand) $ev
-        if ($hit) { $kind = 'PG'; break }
+        $p = Join-Path $J $cand
+        if (-not (Test-Path $p)) { continue }
+        $h = @(Select-String -LiteralPath $p -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue)
+        if ($h.Count -gt 0) { $hit = $cand + ':' + $h[0].LineNumber; break }
     }
-    if (-not $hit) {
-        $cc = $convClass[[string]$r.ConvID]
-        if ($cc) {
-            foreach ($cand in @(($cc + '.java'), ($cc + 'Super.java'))) {
-                $hit = Find-Method (Join-Path $J $cand) $ev
-                if ($hit) { $kind = 'CON'; break }
-            }
-        }
-    }
-    if (-not $hit) { $hit = '-' }
-    $sayac[$kind] = $sayac[$kind] + 1
-    [void]$rows.Add(($kind.PadRight(5) + $cls.PadRight(38) + $ev.PadRight(24) + $hit))
-}
-
-[void]$rows.Add("")
-[void]$rows.Add("=== koddaki onXxx -> nereden cagriliyor ===")
-[void]$rows.Add("CCT  : CCT'de tanimli")
-[void]$rows.Add("UI   : ekranin js/html dosyasinda geciyor")
-[void]$rows.Add("KOD  : java icinden cagriliyor")
-[void]$rows.Add("OLU? : hicbir yerde referansi yok  << incelenecek")
-[void]$rows.Add("")
-$cctEvents = @()
-foreach ($r in @($trans)) {
-    if ($r.CtrlEvent) { $cctEvents += [string]$r.CtrlEvent }
-    if ($r.Event)     { $cctEvents += [string]$r.Event }
-}
-$cctEvents = @($cctEvents | Sort-Object -Unique)
-$sayac2 = @{ CCT = 0; UI = 0; KOD = 0; OLU = 0 }
-
-foreach ($f in @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })) {
-    $base = $f.BaseName
-    $uiSrc = ''
-    foreach ($ext in @('.js', '.html')) {
-        $p = Join-Path (Join-Path $W $base) ($base + $ext)
-        if (Test-Path $p) { $uiSrc += (Get-Content -LiteralPath $p -Raw) }
-    }
-    $evs = @()
-    foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern '\b(on[A-Z][A-Za-z0-9_]*)\s*\(' -ErrorAction SilentlyContinue)) {
-        if ($h.Matches -and @($h.Matches).Count -gt 0) { $evs += @($h.Matches)[0].Groups[1].Value }
-    }
-    foreach ($ev in @($evs | Sort-Object -Unique)) {
-        $kind = 'OLU'
-        if ($cctEvents -contains $ev) { $kind = 'CCT' }
-        elseif ($uiSrc -and $uiSrc.Contains($ev)) { $kind = 'UI' }
-        else {
-            $tot = @(Get-ChildItem $J -File -Filter *.java | Select-String -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue).Count
-            if ($tot -gt 1) { $kind = 'KOD' }
-        }
-        $sayac2[$kind] = $sayac2[$kind] + 1
-        $lbl = $kind; if ($kind -eq 'OLU') { $lbl = 'OLU?' }
-        [void]$rows.Add(($lbl.PadRight(5) + $f.Name.PadRight(38) + $ev))
-    }
+    if ($hit) { $sC.VAR++; [void]$rows.Add(('VAR '.PadRight(6) + $cls.PadRight(38) + $ev.PadRight(24) + $hit)) }
+    else      { $sC.YOK++; [void]$rows.Add(('YOK '.PadRight(6) + $cls.PadRight(38) + $ev)) }
 }
 
 Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
-"CCT olaylari  : PG={0}  CON={1}  YOK={2}" -f $sayac.PG, $sayac.CON, $sayac.YOK
-"Kod onXxx     : CCT={0}  UI={1}  KOD={2}  OLU?={3}" -f $sayac2.CCT, $sayac2.UI, $sayac2.KOD, $sayac2.OLU
+"A token      : uretiliyor={0}  ULASILAMAYAN={1}   (distinct token: {2})" -f $sA.VAR, $sA.YOK, $tokens.Count
+"B setCtrlEv  : eslesti={0}  OLU SONUC={1}  degisken={2}" -f $sB.OK, $sB.YOK, $sB.DEG
+"C Event      : handler var={0}  yok={1}" -f $sC.VAR, $sC.YOK
 "21-event-handler : " + $rows.Count + " satir"
 ````
-
-`YOK` veya `OLU?` sayısı yüksek kalırsa framework taban sınıfları `$J` dışında
-olabilir; arama kapsamını genişletmek gerekir.
-
-### M2-T — teşhis (YOK sayısı yüksekse)
-
-`YOK` şişkin görünüyorsa üç sebepten olabilir: aynı olay birçok TASK'ta
-tekrar ediyordur, handler `ControllerEvent` yerine `Event` adıyla yazılmıştır,
-ya da `Con_` sınıf adı türetmesi tutmuyordur. Bu blok üçünü de gösterir.
-
-````powershell
-$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
-$O = "docs\entry-akis\_tarama"
-if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
-if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
-
-"--- distinct CtrlEvent ---"
-@($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending) |
-    ForEach-Object { "  " + $_.Count.ToString().PadLeft(3) + "  " + $_.Name }
-
-"--- distinct Event (ACTION/DECISION) ---"
-@($trans | ForEach-Object { [string]$_.Event } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending) |
-    ForEach-Object { "  " + $_.Count.ToString().PadLeft(3) + "  " + $_.Name }
-
-"--- Con_ dosyalari ---"
-@(Get-ChildItem $J -File -Filter "Con_*.java") | ForEach-Object { "  " + $_.Name }
-
-"--- convs.Controller son segmenti ---"
-@($convs) | ForEach-Object { "  " + [string]$_.ConvID + "  ->  " + @(([string]$_.Controller) -split '\.')[-1] }
-
-"--- en sik CtrlEvent repo genelinde nerede geciyor ---"
-$grp = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending)
-if ($grp.Count -gt 0) {
-    $sample = $grp[0].Name
-    "ornek olay: $sample"
-    @(Get-ChildItem $J -File -Filter *.java | Select-String -SimpleMatch $sample | Select-Object -First 10) |
-        ForEach-Object { "  " + $_.Filename + ":" + $_.LineNumber + "  " + $_.Line.Trim() }
-}
-````
-
-Beklenen: distinct `CtrlEvent` 15-20 civarı. Son bölüm handler'ın gerçekte
-hangi dosyada ve hangi imzayla durduğunu gösterir — eşleştirme oradan düzeltilir.
 
 ---
 
