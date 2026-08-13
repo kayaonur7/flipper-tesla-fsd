@@ -86,17 +86,21 @@ kullanılacak, model bunları yeniden keşfetmeye çalışmamalı.
 | # | Bulgu | Kanıt |
 |---|---|---|
 | 1 | `event236608` — CCT'de tanımlı, kodda üretilmiyor, handler'ı da yok | `PG_ApplicationAccount` TASK'ı |
-| 2 | `GO_TO_TERMINAL` üretiliyor ama hiçbir TRANSITION beklemiyor | `PG_ApplicationPricing.java:1146` |
-| 3 | `GOTO_PRODUCTAUTH` üretiliyor ama hiçbir TRANSITION beklemiyor | `PG_ApplicationPricing.java:1148`, `PG_ApplicationPricingTrio.java:576` |
+| 2 | **Ürün tipine göre yönlendirme tamamen yoruma alınmış.** `merchantHasTrioProduct` → `GO_TO_PRICING`, `merchantHasNonVirtualPosProduct` → `GO_TO_TERMINAL`, aksi hâlde `GOTO_PRODUCTAUTH` dallanmasının tamamı yorum satırında — hem `onBackClicked` hem `onNextClicked` içinde | `PG_ApplicationPricing.java:1142-1149`, `:1156+`, `PG_ApplicationPricingTrio.java:576` |
+| 3 | `con_point` / `task_merchantpoint` conversation'ının **çağıran tarafı bulunamadı**. Sınıf, CCT ve sayfa tanımı mevcut (`Con_point.java`, `con_acqpoint.cct`, `PG_MerchantPoint`), ancak repo genelinde hiçbir çağrı yok — muhtemelen başka bir modüldeki menü tanımından açılıyor | M5 bölüm C |
 | 4 | Handler'ı olmayan 3 CCT olayı | `PG_MerchantUpdate`: `onTblProductsClicked`, `onTrioTableCellClicked`, `onBtnAddNewProduct` |
 
-2 ve 3 ardışık satırlarda duruyor — muhtemelen bir if/else'in iki dalı ve
-ikisi de karşılıksız. `GO_TO_` / `GOTO_` isimlendirme tutarsızlığı da elle
-yazılmış token'lara işaret ediyor.
+**Düzeltme:** 2 numaralı bulgu ilk taramada "kodun ürettiği ama hiçbir geçişin
+beklemediği ölü sonuç" olarak kaydedilmişti. M5'in bağlam dökümü gösterdi ki
+satırlar **yoruma alınmış**. Kullanıcının takıldığı bir hata değil, kasıtlı
+devre dışı bırakılmış bir dallanma — ama neden kapatıldığı ve CCT'deki
+karşılığının ne olduğu açık soru. M2 artık yorum satırlarını ayırıyor.
 
-Sayısal durum: 32 distinct token → 19 lokal, 12 dış paket, 1 ulaşılamaz.
-26 emisyon → 23 entry CCT, 2 dış CCT, 3 ölü sonuç. 45 olay → 25 PG,
-16 dış paket, 4 handler yok.
+Sayısal durum (yorum filtresi öncesi): 32 distinct token → 19 lokal,
+12 dış paket, 1 ulaşılamaz. 26 emisyon → 23 entry CCT, 2 dış CCT, 3 ölü sonuç.
+45 olay → 25 PG, 16 dış paket, 4 handler yok. Yorum filtresiyle yeniden
+çalıştırıldığında ölü sonuç sayısı düşecek, `SADECE YORUM` / `YORUMDA`
+kategorileri dolacak.
 
 ### Analizi bozabilecek dört tuzak
 

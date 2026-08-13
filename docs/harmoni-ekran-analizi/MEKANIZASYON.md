@@ -215,11 +215,17 @@ yanlış alarm üretiyordu.
 
 | Bölüm | Kontrol | Etiketler |
 |---|---|---|
-| A | CCT'deki `ControllerEvent` token'ı nerede üretiliyor | `LOKAL` / `DIS PAKET` / **`ULASILAMAZ`** → ulaşılamayan geçiş |
-| B | Kodda üretilen token'ı hangi CCT bekliyor | `ENTRY CCT` / `DIS CCT` / **`OLU SONUC`** → kullanıcı takılır / `DEGISKEN` → elle bak |
+| A | CCT'deki `ControllerEvent` token'ı nerede üretiliyor | `LOKAL` / `DIS PAKET` / **`SADECE YORUM`** / **`ULASILAMAZ`** → ulaşılamayan geçiş |
+| B | Kodda üretilen token'ı hangi CCT bekliyor | `ENTRY CCT` / `DIS CCT` / **`OLU SONUC`** → kullanıcı takılır / **`YORUMDA`** → yoruma alınmış yönlendirme / `DEGISKEN` → elle bak |
 | C | CCT `Event`'inin handler'ı nerede | `PG` / `CON` / `DIS PAKET` / **`YOK`** |
 
 `<< BULGU` işaretli satırlar kapsam artefaktı elenmiş, gerçek bulgulardır.
+
+> **Yorum farkındalığı şart.** İlk sürüm yoruma alınmış `setControllerEvent`
+> çağrılarını çalışan kod sandı ve `PG_ApplicationPricing`'deki tamamen
+> devre dışı bırakılmış ürün-tipi yönlendirmesini "ölü sonuç" olarak raporladı.
+> Blok artık `//`, `/* */` ve `*` satırlarını ayırıyor; yorumdaki kod ayrı
+> etiketle raporlanıyor — yanlış alarm değil, farklı türde bir bulgu.
 
 Tüm java ağacını bir kez belleğe alır, sonra negatifleri orada arar — dosya
 başına tekrar okuma yok.
@@ -235,6 +241,23 @@ if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs
 $localJava = @(Get-ChildItem $J -File -Filter *.java)
 $allJava   = @(Get-ChildItem $SRC -Recurse -File -Filter *.java)
 $allCct    = @(Get-ChildItem $CCT -Recurse -File -Filter *.cct)
+
+# Bir java dosyasinin AKTIF (yorum olmayan) satirlarini dondurur.
+# Yoruma alinmis kod, calisan kod sanilirsa yanlis bulgu uretir.
+function Get-Aktif($path) {
+    $res = New-Object System.Collections.ArrayList
+    $blok = $false
+    $no = 0
+    foreach ($l in (Get-Content -LiteralPath $path)) {
+        $no++
+        $t = $l.Trim()
+        if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }
+        if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }
+        if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }
+        [void]$res.Add([PSCustomObject]@{ No = $no; Text = $l })
+    }
+    return $res
+}
 "tarama kapsami: local={0} java  repo={1} java  cct={2}" -f $localJava.Count, $allJava.Count, $allCct.Count
 
 $idx = @{}
@@ -254,9 +277,19 @@ $tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_
 # --- A ---
 [void]$rows.Add("=== A. ControllerEvent token'i nerede uretiliyor ===")
 $sA = @{ L = 0; D = 0; Y = 0 }
+$sA['Y2'] = 0
 foreach ($t in $tokens) {
-    $h = @($localJava | Select-String -Pattern ('\b' + [regex]::Escape($t) + '\b') -ErrorAction SilentlyContinue)
-    if ($h.Count -gt 0) { $sA.L++; [void]$rows.Add('LOKAL      '.PadRight(14) + $t.PadRight(34) + $h[0].Filename + ':' + $h[0].LineNumber); continue }
+    $rx = [regex]('\b' + [regex]::Escape($t) + '\b')
+    $aktif = $null; $yorumda = $false
+    foreach ($f in $localJava) {
+        foreach ($ln in (Get-Aktif $f.FullName)) {
+            if ($rx.IsMatch($ln.Text)) { $aktif = $f.Name + ':' + $ln.No; break }
+        }
+        if ($aktif) { break }
+        if (-not $yorumda) { $h = @(Select-String -LiteralPath $f.FullName -Pattern $rx -ErrorAction SilentlyContinue); if ($h.Count -gt 0) { $yorumda = $true } }
+    }
+    if ($aktif)  { $sA.L++;  [void]$rows.Add('LOKAL      '.PadRight(14) + $t.PadRight(34) + $aktif); continue }
+    if ($yorumda) { $sA['Y2']++; [void]$rows.Add('SADECE YORUM'.PadRight(14) + $t + '   << BULGU (yoruma alinmis)'); continue }
     $d = Find-Repo $t
     if ($d) { $sA.D++; [void]$rows.Add('DIS PAKET  '.PadRight(14) + $t.PadRight(34) + (Split-Path $d -Leaf)) }
     else    { $sA.Y++; [void]$rows.Add('ULASILAMAZ '.PadRight(14) + $t + '   << BULGU') }
@@ -267,7 +300,11 @@ foreach ($t in $tokens) {
 [void]$rows.Add("=== B. kodda uretilen token hangi CCT bekliyor ===")
 $rxSet = [regex]'setControllerEvent\s*\(\s*([^)]*?)\s*\)'
 $sB = @{ E = 0; D = 0; Y = 0; V = 0 }
+$sB['C'] = 0
 foreach ($f in $localJava) {
+    $aktifLines = Get-Aktif $f.FullName
+    $aktifNo = @{}
+    foreach ($al in $aktifLines) { $aktifNo[$al.No] = $true }
     foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern 'setControllerEvent\s*\(' -ErrorAction SilentlyContinue)) {
         $m = $rxSet.Match([string]$h.Line)
         if (-not $m.Success) { continue }
@@ -276,6 +313,11 @@ foreach ($f in $localJava) {
         $arg = $arg.Trim()
         if (-not $arg) { continue }
         $loc = $f.Name + ':' + $h.LineNumber
+        if (-not $aktifNo.ContainsKey($h.LineNumber)) {
+            $sB['C']++
+            [void]$rows.Add('YORUMDA   '.PadRight(12) + $arg.PadRight(34) + $loc + '   << BULGU (yoruma alinmis yonlendirme)')
+            continue
+        }
         if ($arg -cmatch '^[a-z]') { $sB.V++; [void]$rows.Add('DEGISKEN   '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
         if ($tokens -contains $arg) { $sB.E++; [void]$rows.Add('ENTRY CCT  '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
         $inOther = $false
@@ -315,8 +357,8 @@ foreach ($e in @($trans | Select-Object FromPage, Event, ConvID -Unique)) {
 }
 
 Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
-"A : lokal={0} dis-paket={1} ULASILAMAZ={2}" -f $sA.L, $sA.D, $sA.Y
-"B : entry-cct={0} dis-cct={1} OLU-SONUC={2} degisken={3}" -f $sB.E, $sB.D, $sB.Y, $sB.V
+"A : lokal={0} dis-paket={1} SADECE-YORUM={2} ULASILAMAZ={3}" -f $sA.L, $sA.D, $sA['Y2'], $sA.Y
+"B : entry-cct={0} dis-cct={1} OLU-SONUC={2} YORUMDA={3} degisken={4}" -f $sB.E, $sB.D, $sB.Y, $sB['C'], $sB.V
 "C : pg={0} con={1} dis-paket={2} YOK={3}" -f $sC.P, $sC.C, $sC.D, $sC.Y
 "21-event-handler : " + $rows.Count + " satir"
 ````
