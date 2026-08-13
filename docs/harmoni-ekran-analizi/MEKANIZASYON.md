@@ -319,6 +319,45 @@ Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
 `YOK` veya `OLU?` sayısı yüksek kalırsa framework taban sınıfları `$J` dışında
 olabilir; arama kapsamını genişletmek gerekir.
 
+### M2-T — teşhis (YOK sayısı yüksekse)
+
+`YOK` şişkin görünüyorsa üç sebepten olabilir: aynı olay birçok TASK'ta
+tekrar ediyordur, handler `ControllerEvent` yerine `Event` adıyla yazılmıştır,
+ya da `Con_` sınıf adı türetmesi tutmuyordur. Bu blok üçünü de gösterir.
+
+````powershell
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O = "docs\entry-akis\_tarama"
+if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
+if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
+
+"--- distinct CtrlEvent ---"
+@($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending) |
+    ForEach-Object { "  " + $_.Count.ToString().PadLeft(3) + "  " + $_.Name }
+
+"--- distinct Event (ACTION/DECISION) ---"
+@($trans | ForEach-Object { [string]$_.Event } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending) |
+    ForEach-Object { "  " + $_.Count.ToString().PadLeft(3) + "  " + $_.Name }
+
+"--- Con_ dosyalari ---"
+@(Get-ChildItem $J -File -Filter "Con_*.java") | ForEach-Object { "  " + $_.Name }
+
+"--- convs.Controller son segmenti ---"
+@($convs) | ForEach-Object { "  " + [string]$_.ConvID + "  ->  " + @(([string]$_.Controller) -split '\.')[-1] }
+
+"--- en sik CtrlEvent repo genelinde nerede geciyor ---"
+$grp = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Group-Object | Sort-Object Count -Descending)
+if ($grp.Count -gt 0) {
+    $sample = $grp[0].Name
+    "ornek olay: $sample"
+    @(Get-ChildItem $J -File -Filter *.java | Select-String -SimpleMatch $sample | Select-Object -First 10) |
+        ForEach-Object { "  " + $_.Filename + ":" + $_.LineNumber + "  " + $_.Line.Trim() }
+}
+````
+
+Beklenen: distinct `CtrlEvent` 15-20 civarı. Son bölüm handler'ın gerçekte
+hangi dosyada ve hangi imzayla durduğunu gösterir — eşleştirme oradan düzeltilir.
+
 ---
 
 ## M3 — Dil durumu
