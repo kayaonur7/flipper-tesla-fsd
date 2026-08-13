@@ -735,9 +735,9 @@ foreach ($f in @(Get-ChildItem $J -File -Filter *.java)) {
         $a = [Math]::Max(0, $i - 12); $b = [Math]::Min($ls.Count - 1, $i + 3)
         [void]$out.Add("")
         [void]$out.Add("--- " + $f.Name + ":" + ($i + 1) + " ---")
-        for ($j = $a; $j -le $b; $j++) {
-            $mark = "  "; if ($j -eq $i) { $mark = ">>" }
-            [void]$out.Add($mark + " " + ($j + 1).ToString().PadLeft(5) + "  " + $ls[$j].TrimEnd())
+        for ($ix = $a; $ix -le $b; $ix++) {
+            $mark = "  "; if ($ix -eq $i) { $mark = ">>" }
+            [void]$out.Add($mark + " " + ($ix + 1).ToString().PadLeft(5) + "  " + $ls[$ix].TrimEnd())
         }
     }
 }
@@ -791,6 +791,11 @@ Set-Content "$O\23-acik-sorular.txt" -Value ($out -join "`r`n") -Encoding UTF8
 
 Çıktı Adım 9'un girdisine eklenir. Kapanmayan sorular Adım 12'nin ilgili grup
 turuna not olarak taşınır.
+
+> **PowerShell tuzağı:** değişken adları büyük/küçük harf duyarsızdır — `$j`
+> ile `$J` aynı değişkendir. Bu blokta döngü sayacı önce `$j` idi ve `$J` kök
+> yolunu eziyordu; sayaç `$ix` olarak değiştirildi. Kendi bloklarını yazarken
+> tek harfli sayaçları köklerle (`$W`, `$J`, `$O`) çakıştırma.
 
 ---
 
