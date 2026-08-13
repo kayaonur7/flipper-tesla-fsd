@@ -1001,6 +1001,31 @@ foreach ($key in $mat.Keys) {
         if ($capraz) { $kapsam[$key] = 'PAYLASILAN' } else { $kapsam[$key] = 'LOKAL' }
     }
 }
+# --- Genisletme: OKUYAN-YOK / YAZAN-YOK alanlarini TUM repoda ara ---
+# entry/controllers disinda (Super siniflar, diger paketler, BE eslemesi)
+# okuyan/yazan olabilir. Kapsam darligini olu veri sanmamak icin.
+$SRC = "src\main\java"
+$supheli = @($mat.Keys | Where-Object { $kapsam[$_] -eq 'OKUYAN-YOK' -or $kapsam[$_] -eq 'YAZAN-YOK' })
+if ($supheli.Count -gt 0) {
+    $alanlar = @($supheli | ForEach-Object { @($_ -split '\.')[-1] } | Sort-Object -Unique)
+    $rxOku = [regex]('\.(?:get|is)(' + (($alanlar | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')\s*\(')
+    $rxYaz = [regex]('\.set(' + (($alanlar | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')\s*\(')
+    $disOku = @{}; $disYaz = @{}
+    $devAdlari = @($devJava | ForEach-Object { $_.BaseName })
+    foreach ($f in @(Get-ChildItem $SRC -Recurse -File -Filter *.java)) {
+        if ($devAdlari -contains $f.BaseName) { continue }
+        $txt = Get-Content -LiteralPath $f.FullName -Raw
+        if (-not $txt) { continue }
+        foreach ($m in $rxOku.Matches($txt)) { if (-not $disOku.ContainsKey($m.Groups[1].Value)) { $disOku[$m.Groups[1].Value] = $f.BaseName } }
+        foreach ($m in $rxYaz.Matches($txt)) { if (-not $disYaz.ContainsKey($m.Groups[1].Value)) { $disYaz[$m.Groups[1].Value] = $f.BaseName } }
+    }
+    foreach ($key in $supheli) {
+        $alan = @($key -split '\.')[-1]
+        if ($kapsam[$key] -eq 'OKUYAN-YOK' -and $disOku.ContainsKey($alan)) { $kapsam[$key] = 'OKUYAN: ' + $disOku[$alan] }
+        if ($kapsam[$key] -eq 'YAZAN-YOK'  -and $disYaz.ContainsKey($alan)) { $kapsam[$key] = 'YAZAN: '  + $disYaz[$alan] }
+    }
+}
+
 [void]$out.Add("| Tasiyici.Alan | Kapsam | YAZAN | OKUYAN |")
 [void]$out.Add("|---|---|---|---|")
 foreach ($key in ($mat.Keys | Sort-Object)) {
@@ -1012,15 +1037,21 @@ $kisa = New-Object System.Collections.ArrayList
 [void]$kisa.Add("# Paylasilan state ve anomaliler")
 [void]$kisa.Add("")
 [void]$kisa.Add("LOKAL alanlar (ayni ekran yazip okuyor) bu dosyada YOK - tam liste 24-state-sozlugu.txt")
-foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK')) {
-    $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -eq $grp } | Sort-Object)
+foreach ($grp in @('PAYLASILAN', 'OKUYAN-YOK', 'YAZAN-YOK', 'DIS-KULLANIM')) {
+    if ($grp -eq 'DIS-KULLANIM') {
+        $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -like 'OKUYAN: *' -or $kapsam[$_] -like 'YAZAN: *' } | Sort-Object)
+    } else {
+        $satirlar = @($mat.Keys | Where-Object { $kapsam[$_] -eq $grp } | Sort-Object)
+    }
     [void]$kisa.Add("")
     [void]$kisa.Add("## " + $grp + "  (" + $satirlar.Count + " alan)")
     [void]$kisa.Add("")
-    [void]$kisa.Add("| Tasiyici.Alan | YAZAN | OKUYAN |")
-    [void]$kisa.Add("|---|---|---|")
+    [void]$kisa.Add("| Tasiyici.Alan | YAZAN | OKUYAN | Not |")
+    [void]$kisa.Add("|---|---|---|---|")
     foreach ($key in $satirlar) {
-        [void]$kisa.Add("| " + $key + " | " + (@($mat[$key].W) -join ', ') + " | " + (@($mat[$key].R) -join ', ') + " |")
+        $not = ''
+        if ($kapsam[$key] -like '*: *') { $not = 'entry disinda: ' + (@($kapsam[$key] -split ': ')[-1]) }
+        [void]$kisa.Add("| " + $key + " | " + (@($mat[$key].W) -join ', ') + " | " + (@($mat[$key].R) -join ', ') + " | " + $not + " |")
     }
 }
 Set-Content "$O\24b-state-paylasilan.txt" -Value ($kisa -join "`r`n") -Encoding UTF8
@@ -1032,8 +1063,9 @@ Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 "alan sayisi      : " + $mat.Count
 "  paylasilan     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'PAYLASILAN' }).Count
 "  lokal          : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'LOKAL' }).Count
-"  okuyan yok     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'OKUYAN-YOK' }).Count
+"  okuyan yok     : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'OKUYAN-YOK' }).Count + "   << gercekten olu aday"
 "  yazan yok      : " + @($mat.Keys | Where-Object { $kapsam[$_] -eq 'YAZAN-YOK' }).Count
+"  entry disinda  : " + @($mat.Keys | Where-Object { $kapsam[$_] -like '*: *' }).Count
 "24-state-sozlugu : " + $out.Count + " satir"
 ````
 
@@ -1042,6 +1074,13 @@ Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 > **taşıyıcı tipleri** çıkarılıyor, sonra o tipten değişkenler her bildirim
 > biçiminde (atama, parametre, yerel) taranıyor, ayrıca `getApplicationInfo().getX()`
 > ve `((Tip) ...).getX()` zincirleme erişimleri de yakalanıyor.
+
+> **Kapsam genişletme pası.** İlk sınıflandırma yalnızca `entry/controllers`
+> altındaki 27 dev sınıfa bakıyordu ve 166 alanın 80'ini "okuyan yok" sayıyordu.
+> Bu alanların okuyucuları çoğunlukla `Super` sınıflarında, BE'ye giden DTO
+> eşlemesinde veya entry dışı ekranlarda. Blok artık şüpheli alanları tüm java
+> ağacında arayıp `entry disinda: <sinif>` notuyla ayırıyor; geriye kalan
+> `OKUYAN-YOK` gerçekten ölü veri adayı.
 
 `YAZAN YOK` = veri akışa dışarıdan giriyor veya başka bir ekran yazıyor olabilir.
 `OKUYAN YOK` = yazılıp hiç okunmayan alan — potansiyel ölü veri. İkisi de
