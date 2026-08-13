@@ -221,6 +221,10 @@ yanlış alarm üretiyordu.
 
 `<< BULGU` işaretli satırlar kapsam artefaktı elenmiş, gerçek bulgulardır.
 
+> **Overload ve değişken çözümleme B bölümüne katıldı.** Ayrı bir M2-B2 bloğu
+> yok; `setControllerEvent(eventData, "TOKEN")` formu ve sabit yerine değişken
+> geçirilen çağrılar burada çözülüyor.
+>
 > **Yorum farkındalığı şart.** İlk sürüm yoruma alınmış `setControllerEvent`
 > çağrılarını çalışan kod sandı ve `PG_ApplicationPricing`'deki tamamen
 > devre dışı bırakılmış ürün-tipi yönlendirmesini "ölü sonuç" olarak raporladı.
@@ -298,32 +302,45 @@ foreach ($t in $tokens) {
 # --- B ---
 [void]$rows.Add("")
 [void]$rows.Add("=== B. kodda uretilen token hangi CCT bekliyor ===")
-$rxSet = [regex]'setControllerEvent\s*\(\s*([^)]*?)\s*\)'
+# Cagri formu iki turlu: setControllerEvent("TOKEN") ve
+# setControllerEvent(eventData, "TOKEN"). Arguman listesindeki SON token alinir;
+# sabit yerine degisken gecilmisse ayni dosyadaki atamasindan cozulur.
+$rxCall = [regex]'setControllerEvent\s*\(([^;]*)\)'
+$rxTok  = [regex]'([A-Z][A-Z0-9_]{2,})'
 $sB = @{ E = 0; D = 0; Y = 0; V = 0 }
 $sB['C'] = 0
 foreach ($f in $localJava) {
-    $aktifLines = Get-Aktif $f.FullName
     $aktifNo = @{}
-    foreach ($al in $aktifLines) { $aktifNo[$al.No] = $true }
-    foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern 'setControllerEvent\s*\(' -ErrorAction SilentlyContinue)) {
-        $m = $rxSet.Match([string]$h.Line)
+    foreach ($al in (Get-Aktif $f.FullName)) { $aktifNo[$al.No] = $true }
+    $ls = @(Get-Content -LiteralPath $f.FullName)
+    for ($i = 0; $i -lt $ls.Count; $i++) {
+        $m = $rxCall.Match($ls[$i])
         if (-not $m.Success) { continue }
-        $arg = $m.Groups[1].Value.Trim().Trim('"')
-        if ($arg.Contains('.')) { $arg = @($arg -split '\.')[-1] }
-        $arg = $arg.Trim()
-        if (-not $arg) { continue }
-        $loc = $f.Name + ':' + $h.LineNumber
-        if (-not $aktifNo.ContainsKey($h.LineNumber)) {
+        $argList = $m.Groups[1].Value
+        $loc = $f.Name + ':' + ($i + 1)
+        $toks = @($rxTok.Matches($argList) | ForEach-Object { $_.Groups[1].Value })
+        if ($toks.Count -eq 0) {
+            $v = ''
+            $lastId = [regex]::Match($argList, '([A-Za-z_]\w*)\s*$')
+            if ($lastId.Success) {
+                $vn = $lastId.Groups[1].Value
+                $asg = @($ls | Select-String -Pattern ('\b' + [regex]::Escape($vn) + '\s*=\s*[^;]*?([A-Z][A-Z0-9_]{2,})'))
+                if ($asg.Count -gt 0) { $v = [regex]::Match($asg[0].Line, '([A-Z][A-Z0-9_]{2,})').Groups[1].Value }
+            }
+            if ($v) { $toks = @($v) }
+            else { $sB.V++; [void]$rows.Add('DEGISKEN  '.PadRight(12) + $argList.Trim().PadRight(34) + $loc); continue }
+        }
+        $arg = $toks[-1]
+        if (-not $aktifNo.ContainsKey($i + 1)) {
             $sB['C']++
             [void]$rows.Add('YORUMDA   '.PadRight(12) + $arg.PadRight(34) + $loc + '   << BULGU (yoruma alinmis yonlendirme)')
             continue
         }
-        if ($arg -cmatch '^[a-z]') { $sB.V++; [void]$rows.Add('DEGISKEN   '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
-        if ($tokens -contains $arg) { $sB.E++; [void]$rows.Add('ENTRY CCT  '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
+        if ($tokens -contains $arg) { $sB.E++; [void]$rows.Add('ENTRY CCT '.PadRight(12) + $arg.PadRight(34) + $loc); continue }
         $inOther = $false
         foreach ($c in $allCct) { if ((Get-Content -LiteralPath $c.FullName -Raw) -match ('ControllerEvent="' + [regex]::Escape($arg) + '"')) { $inOther = $true; break } }
-        if ($inOther) { $sB.D++; [void]$rows.Add('DIS CCT    '.PadRight(14) + $arg.PadRight(34) + $loc) }
-        else          { $sB.Y++; [void]$rows.Add('OLU SONUC  '.PadRight(14) + $arg.PadRight(34) + $loc + '   << BULGU') }
+        if ($inOther) { $sB.D++; [void]$rows.Add('DIS CCT   '.PadRight(12) + $arg.PadRight(34) + $loc) }
+        else          { $sB.Y++; [void]$rows.Add('OLU SONUC '.PadRight(12) + $arg.PadRight(34) + $loc + '   << BULGU') }
     }
 }
 
@@ -361,56 +378,6 @@ Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
 "B : entry-cct={0} dis-cct={1} OLU-SONUC={2} YORUMDA={3} degisken={4}" -f $sB.E, $sB.D, $sB.Y, $sB['C'], $sB.V
 "C : pg={0} con={1} dis-paket={2} YOK={3}" -f $sC.P, $sC.C, $sC.D, $sC.Y
 "21-event-handler : " + $rows.Count + " satir"
-````
-
-### M2-B2 — `setControllerEvent` overload'ı
-
-İlk çalıştırmada `DEGISKEN` olarak işaretlenen satırlar bir tarama açığını
-ortaya çıkardı: framework'ün **iki argümanlı** bir overload'ı var —
-`setControllerEvent(eventData, "TOKEN")`. Tek argüman varsayan regex bu formu
-kaçırıyor, dolayısıyla `OLU SONUC` sayısı olduğundan düşük görünüyor.
-
-Bu blok tüm çağrı formlarını yakalar, argüman listesindeki **son** token'ı alır
-ve sabit yerine değişken geçirilmişse aynı dosyadaki atamasından çözmeye çalışır.
-
-````powershell
-$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
-$CCT = "src\main\webapp\cct"; $O = "docs\entry-akis\_tarama"
-if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
-$tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Sort-Object -Unique)
-$cctFiles = @(Get-ChildItem $CCT -Recurse -File -Filter *.cct)
-
-$rxCall = [regex]'setControllerEvent\s*\(([^;]*)\)'
-$rxTok  = [regex]'([A-Z][A-Z0-9_]{2,})'
-$sum = @{ E = 0; D = 0; Y = 0; V = 0 }
-foreach ($f in @(Get-ChildItem $J -File -Filter *.java)) {
-    $lines = Get-Content -LiteralPath $f.FullName
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $m = $rxCall.Match($lines[$i]); if (-not $m.Success) { continue }
-        $argList = $m.Groups[1].Value
-        $toks = @($rxTok.Matches($argList) | ForEach-Object { $_.Groups[1].Value })
-        if ($toks.Count -eq 0) {
-            $v = ''
-            $lastId = [regex]::Match($argList, '([A-Za-z_]\w*)\s*$')
-            if ($lastId.Success) {
-                $vn = $lastId.Groups[1].Value
-                $asg = @($lines | Select-String -Pattern ('\b' + [regex]::Escape($vn) + '\s*=\s*[^;]*?([A-Z][A-Z0-9_]{2,})'))
-                if ($asg.Count -gt 0) { $v = [regex]::Match($asg[0].Line, '([A-Z][A-Z0-9_]{2,})').Groups[1].Value }
-            }
-            if ($v) { $toks = @($v) }
-            else { $sum.V++; "  DEGISKEN   " + $argList.Trim() + "   " + $f.Name + ":" + ($i + 1); continue }
-        }
-        $tok = $toks[-1]
-        if ($tokens -contains $tok) { $sum.E++; continue }
-        $inOther = $false
-        foreach ($c in $cctFiles) {
-            if ((Get-Content -LiteralPath $c.FullName -Raw) -match ('ControllerEvent="' + [regex]::Escape($tok) + '"')) { $inOther = $true; break }
-        }
-        if ($inOther) { $sum.D++; "  DIS CCT    " + $tok.PadRight(28) + $f.Name + ":" + ($i + 1) }
-        else          { $sum.Y++; "  OLU SONUC  " + $tok.PadRight(28) + $f.Name + ":" + ($i + 1) + "   << BULGU" }
-    }
-}
-"ozet: entry-cct={0} dis-cct={1} OLU-SONUC={2} cozulemeyen-degisken={3}" -f $sum.E, $sum.D, $sum.Y, $sum.V
 ````
 
 ### Bulguları çıkarma
