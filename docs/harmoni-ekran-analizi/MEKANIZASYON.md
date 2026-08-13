@@ -208,55 +208,66 @@ Set-Content "docs\entry-akis\00b-akis-otomatik.md" -Value ($md -join "`r`n") -En
 > `eventData.setControllerEvent(TOKEN)` ile üretir, framework bu token'a bakıp
 > hangi `TRANSITION`'ın işleyeceğine karar verir. Token sabit olarak tanımlı
 > olabilir (`STAY_ON_PAGE`, `PricingConstants.STAY_ON_PAGE`).
->
-> İlk sürüm bu ismi metot sanıp arıyordu ve 71 geçişin 60'ını "bulunamadı"
-> diye işaretliyordu — tamamı yanlış alarmdı.
 
-Bu blok üç tutarlılık kontrolü yapar:
+Üç tutarlılık kontrolü yapar. Negatif çıkan her kaydı **repo genelinde** tekrar
+arar — entry conversation'ları akış sınırını aştığı için `$J` ile sınırlı arama
+yanlış alarm üretiyordu.
 
-| Bölüm | Kontrol | Bulgu |
+| Bölüm | Kontrol | Etiketler |
 |---|---|---|
-| A | CCT'deki her `ControllerEvent` token'ı kodda üretiliyor mu | `URETILMIYOR` → **ulaşılamayan geçiş** |
-| B | Kodda `setControllerEvent(X)` ile üretilen her token CCT'de bekleniyor mu | `CCT-DE YOK` → **ölü sonuç**, kullanıcı takılır |
-| C | CCT'deki `Event` için `onXxx` handler'ı var mı | `YOK` → eksik handler |
+| A | CCT'deki `ControllerEvent` token'ı nerede üretiliyor | `LOKAL` / `DIS PAKET` / **`ULASILAMAZ`** → ulaşılamayan geçiş |
+| B | Kodda üretilen token'ı hangi CCT bekliyor | `ENTRY CCT` / `DIS CCT` / **`OLU SONUC`** → kullanıcı takılır / `DEGISKEN` → elle bak |
+| C | CCT `Event`'inin handler'ı nerede | `PG` / `CON` / `DIS PAKET` / **`YOK`** |
+
+`<< BULGU` işaretli satırlar kapsam artefaktı elenmiş, gerçek bulgulardır.
+
+Tüm java ağacını bir kez belleğe alır, sonra negatifleri orada arar — dosya
+başına tekrar okuma yok.
 
 ````powershell
-$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
-$W = "src\main\webapp\page\acq\application\entry"
-$O = "docs\entry-akis\_tarama"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$SRC = "src\main\java"
+$CCT = "src\main\webapp\cct"
+$O   = "docs\entry-akis\_tarama"
 if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
+if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
 
-$javaFiles = @(Get-ChildItem $J -File -Filter *.java)
-$rows = New-Object System.Collections.ArrayList
+$localJava = @(Get-ChildItem $J -File -Filter *.java)
+$allJava   = @(Get-ChildItem $SRC -Recurse -File -Filter *.java)
+$allCct    = @(Get-ChildItem $CCT -Recurse -File -Filter *.cct)
+"tarama kapsami: local={0} java  repo={1} java  cct={2}" -f $localJava.Count, $allJava.Count, $allCct.Count
 
-# --- A: CCT'deki ControllerEvent token'i kodda uretiliyor mu ---
-[void]$rows.Add("=== A. CCT ControllerEvent token'i kodda uretiliyor mu ===")
-[void]$rows.Add("URETILIYOR   : token kodda geciyor")
-[void]$rows.Add("URETILMIYOR  : hicbir yerde uretilmiyor -> ULASILAMAYAN GECIS")
-[void]$rows.Add("")
-$tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Sort-Object -Unique)
-$sA = @{ VAR = 0; YOK = 0 }
-foreach ($t in $tokens) {
-    $h = @($javaFiles | Select-String -Pattern ('\b' + [regex]::Escape($t) + '\b') -ErrorAction SilentlyContinue)
-    if ($h.Count -gt 0) {
-        $sA.VAR++
-        [void]$rows.Add(('URETILIYOR '.PadRight(14) + $t.PadRight(34) + $h.Count.ToString().PadLeft(4) + ' yer  ilk: ' + $h[0].Filename + ':' + $h[0].LineNumber))
-    } else {
-        $sA.YOK++
-        [void]$rows.Add(('URETILMIYOR'.PadRight(14) + $t))
-    }
+$idx = @{}
+foreach ($f in $allJava) { $idx[$f.FullName] = (Get-Content -LiteralPath $f.FullName -Raw) }
+$byName = @{}
+foreach ($f in $allJava) { $byName[$f.BaseName] = $f.FullName }
+
+function Find-Repo($token) {
+    $rx = [regex]('\b' + [regex]::Escape($token) + '\b')
+    foreach ($k in $idx.Keys) { if ($rx.IsMatch($idx[$k])) { return $k } }
+    return $null
 }
 
-# --- B: koddaki setControllerEvent(...) CCT'de tanimli mi ---
+$rows = New-Object System.Collections.ArrayList
+$tokens = @($trans | ForEach-Object { [string]$_.CtrlEvent } | Where-Object { $_ } | Sort-Object -Unique)
+
+# --- A ---
+[void]$rows.Add("=== A. ControllerEvent token'i nerede uretiliyor ===")
+$sA = @{ L = 0; D = 0; Y = 0 }
+foreach ($t in $tokens) {
+    $h = @($localJava | Select-String -Pattern ('\b' + [regex]::Escape($t) + '\b') -ErrorAction SilentlyContinue)
+    if ($h.Count -gt 0) { $sA.L++; [void]$rows.Add('LOKAL      '.PadRight(14) + $t.PadRight(34) + $h[0].Filename + ':' + $h[0].LineNumber); continue }
+    $d = Find-Repo $t
+    if ($d) { $sA.D++; [void]$rows.Add('DIS PAKET  '.PadRight(14) + $t.PadRight(34) + (Split-Path $d -Leaf)) }
+    else    { $sA.Y++; [void]$rows.Add('ULASILAMAZ '.PadRight(14) + $t + '   << BULGU') }
+}
+
+# --- B ---
 [void]$rows.Add("")
-[void]$rows.Add("=== B. kodda uretilen token CCT'de tanimli mi ===")
-[void]$rows.Add("ESLESTI   : CCT'de bu token'i bekleyen bir TRANSITION var")
-[void]$rows.Add("CCT-DE YOK: hicbir gecis bu token'i beklemiyor -> OLU SONUC")
-[void]$rows.Add("DEGISKEN  : arguman sabit degil, elle incelenmeli")
-[void]$rows.Add("")
+[void]$rows.Add("=== B. kodda uretilen token hangi CCT bekliyor ===")
 $rxSet = [regex]'setControllerEvent\s*\(\s*([^)]*?)\s*\)'
-$sB = @{ OK = 0; YOK = 0; DEG = 0 }
-foreach ($f in $javaFiles) {
+$sB = @{ E = 0; D = 0; Y = 0; V = 0 }
+foreach ($f in $localJava) {
     foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern 'setControllerEvent\s*\(' -ErrorAction SilentlyContinue)) {
         $m = $rxSet.Match([string]$h.Line)
         if (-not $m.Success) { continue }
@@ -264,35 +275,49 @@ foreach ($f in $javaFiles) {
         if ($arg.Contains('.')) { $arg = @($arg -split '\.')[-1] }
         $arg = $arg.Trim()
         if (-not $arg) { continue }
-        if ($arg -cmatch '^[a-z]') { $sB.DEG++; [void]$rows.Add(('DEGISKEN  '.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)); continue }
-        if ($tokens -contains $arg) { $sB.OK++;  [void]$rows.Add(('ESLESTI   '.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)) }
-        else                        { $sB.YOK++; [void]$rows.Add(('CCT-DE YOK'.PadRight(12) + $arg.PadRight(34) + $f.Name + ':' + $h.LineNumber)) }
+        $loc = $f.Name + ':' + $h.LineNumber
+        if ($arg -cmatch '^[a-z]') { $sB.V++; [void]$rows.Add('DEGISKEN   '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
+        if ($tokens -contains $arg) { $sB.E++; [void]$rows.Add('ENTRY CCT  '.PadRight(14) + $arg.PadRight(34) + $loc); continue }
+        $inOther = $false
+        foreach ($c in $allCct) { if ((Get-Content -LiteralPath $c.FullName -Raw) -match ('ControllerEvent="' + [regex]::Escape($arg) + '"')) { $inOther = $true; break } }
+        if ($inOther) { $sB.D++; [void]$rows.Add('DIS CCT    '.PadRight(14) + $arg.PadRight(34) + $loc) }
+        else          { $sB.Y++; [void]$rows.Add('OLU SONUC  '.PadRight(14) + $arg.PadRight(34) + $loc + '   << BULGU') }
     }
 }
 
-# --- C: CCT Event (ACTION/DECISION) -> onXxx handler ---
+# --- C ---
 [void]$rows.Add("")
-[void]$rows.Add("=== C. CCT Event -> handler ===")
-[void]$rows.Add("")
-$sC = @{ VAR = 0; YOK = 0 }
-foreach ($e in @($trans | Select-Object FromPage, Event -Unique)) {
+[void]$rows.Add("=== C. Event -> handler ===")
+$convClass = @{}
+foreach ($c in @($convs)) { $ctrl = [string]$c.Controller; if ($ctrl) { $convClass[[string]$c.ConvID] = @($ctrl -split '\.')[-1] } }
+$sC = @{ P = 0; C = 0; D = 0; Y = 0 }
+foreach ($e in @($trans | Select-Object FromPage, Event, ConvID -Unique)) {
     $ev = [string]$e.Event; $cls = [string]$e.FromPage
     if ([string]::IsNullOrWhiteSpace($ev) -or [string]::IsNullOrWhiteSpace($cls)) { continue }
-    $hit = $null
+    $rx = [regex]('\b' + [regex]::Escape($ev) + '\s*\(')
+    $done = $false
     foreach ($cand in @(($cls + '.java'), ($cls + 'Super.java'))) {
         $p = Join-Path $J $cand
-        if (-not (Test-Path $p)) { continue }
-        $h = @(Select-String -LiteralPath $p -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue)
-        if ($h.Count -gt 0) { $hit = $cand + ':' + $h[0].LineNumber; break }
+        if ((Test-Path $p) -and $rx.IsMatch((Get-Content -LiteralPath $p -Raw))) { $sC.P++; [void]$rows.Add('PG   '.PadRight(7) + $cls.PadRight(38) + $ev.PadRight(26) + $cand); $done = $true; break }
     }
-    if ($hit) { $sC.VAR++; [void]$rows.Add(('VAR '.PadRight(6) + $cls.PadRight(38) + $ev.PadRight(24) + $hit)) }
-    else      { $sC.YOK++; [void]$rows.Add(('YOK '.PadRight(6) + $cls.PadRight(38) + $ev)) }
+    if ($done) { continue }
+    $cc = $convClass[[string]$e.ConvID]
+    if ($cc) {
+        foreach ($cand in @($cc, ($cc + 'Super'))) {
+            if ($byName.ContainsKey($cand) -and $rx.IsMatch($idx[$byName[$cand]])) { $sC.C++; [void]$rows.Add('CON  '.PadRight(7) + $cls.PadRight(38) + $ev.PadRight(26) + $cand + '.java'); $done = $true; break }
+        }
+    }
+    if ($done) { continue }
+    foreach ($cand in @($cls, ($cls + 'Super'))) {
+        if ($byName.ContainsKey($cand) -and $rx.IsMatch($idx[$byName[$cand]])) { $sC.D++; [void]$rows.Add('DIS PAKET'.PadRight(7) + $cls.PadRight(38) + $ev.PadRight(26) + (Split-Path $byName[$cand] -Leaf)); $done = $true; break }
+    }
+    if (-not $done) { $sC.Y++; [void]$rows.Add('YOK  '.PadRight(7) + $cls.PadRight(38) + $ev + '   << BULGU') }
 }
 
 Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
-"A token      : uretiliyor={0}  ULASILAMAYAN={1}   (distinct token: {2})" -f $sA.VAR, $sA.YOK, $tokens.Count
-"B setCtrlEv  : eslesti={0}  OLU SONUC={1}  degisken={2}" -f $sB.OK, $sB.YOK, $sB.DEG
-"C Event      : handler var={0}  yok={1}" -f $sC.VAR, $sC.YOK
+"A : lokal={0} dis-paket={1} ULASILAMAZ={2}" -f $sA.L, $sA.D, $sA.Y
+"B : entry-cct={0} dis-cct={1} OLU-SONUC={2} degisken={3}" -f $sB.E, $sB.D, $sB.Y, $sB.V
+"C : pg={0} con={1} dis-paket={2} YOK={3}" -f $sC.P, $sC.C, $sC.D, $sC.Y
 "21-event-handler : " + $rows.Count + " satir"
 ````
 
