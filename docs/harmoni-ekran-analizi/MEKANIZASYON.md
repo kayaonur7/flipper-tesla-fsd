@@ -909,43 +909,79 @@ foreach ($k in ($sayim.Keys | Sort-Object { -$sayim[$_] })) {
     [void]$out.Add(("  " + $sayim[$k].ToString().PadLeft(5) + "  " + $k))
 }
 
-# --- B. ekran basina tasiyici nesneler ---
-[void]$out.Add(""); [void]$out.Add("===== B. tasiyici nesneler (ekran basina) =====")
-$rxHolder = [regex]'(\w+)\s*=\s*\(\s*([A-Z]\w*)\s*\)\s*\w+\.(\w*Scope\w*|get\w*Scope)\s*\('
-$holders = @{}   # ekran -> [ @{Var;Type;Api} ]
+# --- B. tasiyici TIPLERI (her cast formu) ---
+[void]$out.Add(""); [void]$out.Add("===== B. tasiyici nesneler =====")
+$rxCast = [regex]'\(\s*([A-Z]\w*)\s*\)\s*\w+\.(\w*Scope\w*)\s*\('
+$tipler = @{}
+foreach ($f in $devJava) {
+    foreach ($ln in (Get-Aktif2 $f.FullName)) {
+        foreach ($m in $rxCast.Matches($ln.Text)) {
+            $tip = $m.Groups[1].Value
+            if (-not $tipler.ContainsKey($tip)) { $tipler[$tip] = New-Object System.Collections.ArrayList }
+            if ($tipler[$tip] -notcontains $m.Groups[2].Value) { [void]$tipler[$tip].Add($m.Groups[2].Value) }
+        }
+    }
+}
+[void]$out.Add("-- scope'tan alinan tipler --")
+foreach ($t in ($tipler.Keys | Sort-Object)) { [void]$out.Add("  " + $t.PadRight(30) + ($tipler[$t] -join ', ')) }
+
+# Her dev sinifta bu tiplerden degisken var mi (atama, parametre, yerel bildirim)
+$holders = @{}
 foreach ($f in $devJava) {
     $lst = New-Object System.Collections.ArrayList
-    foreach ($ln in (Get-Aktif2 $f.FullName)) {
-        foreach ($m in $rxHolder.Matches($ln.Text)) {
-            [void]$lst.Add([PSCustomObject]@{ Var = $m.Groups[1].Value; Type = $m.Groups[2].Value; Api = $m.Groups[3].Value; No = $ln.No })
+    $aktif = Get-Aktif2 $f.FullName
+    foreach ($tip in $tipler.Keys) {
+        $rxDecl = [regex]('\b' + [regex]::Escape($tip) + '\s+(\w+)\s*[=;,\)]')
+        foreach ($ln in $aktif) {
+            foreach ($m in $rxDecl.Matches($ln.Text)) {
+                $v = $m.Groups[1].Value
+                if (-not ($lst | Where-Object { $_.Var -eq $v -and $_.Type -eq $tip })) {
+                    [void]$lst.Add([PSCustomObject]@{ Var = $v; Type = $tip; No = $ln.No })
+                }
+            }
         }
     }
     if ($lst.Count -gt 0) {
         $holders[$f.BaseName] = $lst
         [void]$out.Add("--- " + $f.BaseName + " ---")
-        foreach ($h in $lst) { [void]$out.Add("  " + $h.Type.PadRight(28) + $h.Var.PadRight(24) + $h.Api + "  (satir " + $h.No + ")") }
+        foreach ($h in $lst) { [void]$out.Add("  " + $h.Type.PadRight(28) + $h.Var.PadRight(24) + "(satir " + $h.No + ")") }
     }
 }
+[void]$out.Add("")
+[void]$out.Add("tasiyici bulunan ekran: " + $holders.Count + " / " + $devJava.Count)
 
 # --- C. alan bazli okuma/yazma matrisi ---
 [void]$out.Add(""); [void]$out.Add("===== C. alan bazli okuma / yazma =====")
-$mat = @{}   # "Type.Field" -> @{ R = @(); W = @() }
+$mat = @{}
 foreach ($f in $devJava) {
-    if (-not $holders.ContainsKey($f.BaseName)) { continue }
-    $varType = @{}
-    foreach ($h in $holders[$f.BaseName]) { $varType[$h.Var] = $h.Type }
     $aktif = Get-Aktif2 $f.FullName
-    foreach ($v in $varType.Keys) {
-        $rx = [regex]('\b' + [regex]::Escape($v) + '\.(get|set|is)([A-Z]\w*)\s*\(')
-        foreach ($ln in $aktif) {
-            foreach ($m in $rx.Matches($ln.Text)) {
-                $key = $varType[$v] + '.' + $m.Groups[2].Value
-                if (-not $mat.ContainsKey($key)) { $mat[$key] = @{ R = New-Object System.Collections.ArrayList; W = New-Object System.Collections.ArrayList } }
-                if ($m.Groups[1].Value -eq 'set') {
-                    if ($mat[$key].W -notcontains $f.BaseName) { [void]$mat[$key].W.Add($f.BaseName) }
-                } else {
-                    if ($mat[$key].R -notcontains $f.BaseName) { [void]$mat[$key].R.Add($f.BaseName) }
+
+    # C1: degisken uzerinden erisim
+    if ($holders.ContainsKey($f.BaseName)) {
+        $varType = @{}
+        foreach ($h in $holders[$f.BaseName]) { $varType[$h.Var] = $h.Type }
+        foreach ($v in $varType.Keys) {
+            $rx = [regex]('\b' + [regex]::Escape($v) + '\.(get|set|is)([A-Z]\w*)\s*\(')
+            foreach ($ln in $aktif) {
+                foreach ($m in $rx.Matches($ln.Text)) {
+                    $key = $varType[$v] + '.' + $m.Groups[2].Value
+                    if (-not $mat.ContainsKey($key)) { $mat[$key] = @{ R = New-Object System.Collections.ArrayList; W = New-Object System.Collections.ArrayList } }
+                    if ($m.Groups[1].Value -eq 'set') { if ($mat[$key].W -notcontains $f.BaseName) { [void]$mat[$key].W.Add($f.BaseName) } }
+                    else { if ($mat[$key].R -notcontains $f.BaseName) { [void]$mat[$key].R.Add($f.BaseName) } }
                 }
+            }
+        }
+    }
+
+    # C2: zincirleme erisim  getApplicationInfo().getX()  /  ((Tip) ...).getX()
+    foreach ($tip in $tipler.Keys) {
+        $rxChain = [regex]('(?:get' + [regex]::Escape($tip) + '\s*\(\s*\)|\(\s*' + [regex]::Escape($tip) + '\s*\)[^;]{0,120}?\))\s*\.\s*(get|set|is)([A-Z]\w*)\s*\(')
+        foreach ($ln in $aktif) {
+            foreach ($m in $rxChain.Matches($ln.Text)) {
+                $key = $tip + '.' + $m.Groups[2].Value
+                if (-not $mat.ContainsKey($key)) { $mat[$key] = @{ R = New-Object System.Collections.ArrayList; W = New-Object System.Collections.ArrayList } }
+                if ($m.Groups[1].Value -eq 'set') { if ($mat[$key].W -notcontains $f.BaseName) { [void]$mat[$key].W.Add($f.BaseName) } }
+                else { if ($mat[$key].R -notcontains $f.BaseName) { [void]$mat[$key].R.Add($f.BaseName) } }
             }
         }
     }
@@ -962,10 +998,17 @@ foreach ($key in ($mat.Keys | Sort-Object)) {
 
 Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 "scope api cesidi : " + $sayim.Count
-"tasiyicili ekran : " + $holders.Count
+"tasiyici tipi    : " + $tipler.Count
+"tasiyicili ekran : " + $holders.Count + " / " + $devJava.Count
 "alan sayisi      : " + $mat.Count
 "24-state-sozlugu : " + $out.Count + " satir"
 ````
+
+> İlk sürüm taşıyıcıyı yalnızca `var = (Tip) cc.getFromTabScope(...)` kalıbında
+> arıyordu ve 25 dev sınıfın 7'sini yakalıyordu. Artık önce scope çağrılarından
+> **taşıyıcı tipleri** çıkarılıyor, sonra o tipten değişkenler her bildirim
+> biçiminde (atama, parametre, yerel) taranıyor, ayrıca `getApplicationInfo().getX()`
+> ve `((Tip) ...).getX()` zincirleme erişimleri de yakalanıyor.
 
 `YAZAN YOK` = veri akışa dışarıdan giriyor veya başka bir ekran yazıyor olabilir.
 `OKUYAN YOK` = yazılıp hiç okunmayan alan — potansiyel ölü veri. İkisi de
