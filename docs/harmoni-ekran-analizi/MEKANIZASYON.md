@@ -77,15 +77,15 @@ $cctEntry = Get-ChildItem $CCT -Recurse -File -Filter *.cct |
 $convs = @(); $tasks = @(); $trans = @()
 foreach ($f in $cctEntry) {
     $raw = (Get-Content -LiteralPath $f.FullName -Raw) -replace '(?s)<!DOCTYPE.*?>', ''
-    try { [xml]$x = $raw }
+    try { [xml]$xdoc = $raw }
     catch { Write-Warning ("PARSE HATASI: " + $f.Name + " -> " + $_.Exception.Message); continue }
 
-    $c = $x.CONVERSATION
+    $c = $xdoc.CONVERSATION
     $convs += [PSCustomObject]@{
         File = $f.Name; ConvID = $c.ConvID; AppID = $c.ApplicationID
         Controller = $c.ConvController; DefaultTask = $c.DefaultTaskID; Area = $c.FunctionalArea
     }
-    foreach ($t in $x.SelectNodes('//TASK')) {
+    foreach ($t in $xdoc.SelectNodes('//TASK')) {
         $tasks += [PSCustomObject]@{
             File = $f.Name; ConvID = $c.ConvID; TaskID = $t.TaskID; Page = $t.PageName
             Controller = $t.PageController; Cancel = $t.CancelButton
@@ -822,10 +822,16 @@ Set-Content "$O\23-acik-sorular.txt" -Value ($out -join "`r`n") -Encoding UTF8
 Çıktı Adım 9'un girdisine eklenir. Kapanmayan sorular Adım 12'nin ilgili grup
 turuna not olarak taşınır.
 
-> **PowerShell tuzağı:** değişken adları büyük/küçük harf duyarsızdır — `$j`
-> ile `$J` aynı değişkendir. Bu blokta döngü sayacı önce `$j` idi ve `$J` kök
-> yolunu eziyordu; sayaç `$ix` olarak değiştirildi. Kendi bloklarını yazarken
-> tek harfli sayaçları köklerle (`$W`, `$J`, `$O`) çakıştırma.
+> **İki PowerShell tuzağı:**
+>
+> 1. **Değişken adları büyük/küçük harf duyarsız** — `$j` ile `$J` aynı
+>    değişkendir. Bu blokta sayaç önce `$j` idi ve `$J` kök yolunu eziyordu;
+>    `$ix` oldu. Tek harfli sayaçları köklerle (`$W`, `$J`, `$O`) çakıştırma.
+> 2. **`[xml]$x = ...` değişkeni oturum boyunca TİP KISITLI yapar.** M0 CCT'yi
+>    böyle parse ediyordu; sonraki bloklarda `foreach ($x in ...)` yazınca
+>    "Cannot convert value ... to type System.Xml.XmlDocument" hatası
+>    veriyordu. M0 artık `$xdoc` kullanıyor. Tip kısıtı `Remove-Variable x`
+>    ile de temizlenir.
 
 ---
 
@@ -996,7 +1002,7 @@ foreach ($key in $mat.Keys) {
     elseif ($r.Count -eq 0)  { $kapsam[$key] = 'OKUYAN-YOK' }
     else {
         $capraz = $false
-        foreach ($x in $r) { if ($w -notcontains $x) { $capraz = $true; break } }
+        foreach ($okr in $r) { if ($w -notcontains $okr) { $capraz = $true; break } }
         if ($w.Count -gt 1) { $capraz = $true }
         if ($capraz) { $kapsam[$key] = 'PAYLASILAN' } else { $kapsam[$key] = 'LOKAL' }
     }
