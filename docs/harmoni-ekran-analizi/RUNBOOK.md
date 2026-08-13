@@ -692,41 +692,46 @@ Her satırın yanında kaynak referansı. İyileştirme yazma.
 
 ---
 
-## [CP] Adım 9a — Paylaşılan state sözlüğü
+## [CP] Adım 9a — State sözlüğünü yorumla
 
-Yeni chat, **Opus**. Adım 9 tek turda zaman aşımına uğradığı için üçe bölündü.
+Yeni chat, **Opus**. **Önce M7'yi çalıştır** — sözlüğü script üretir, bu tur
+sadece yorumlar. İlk sürüm modelden mekanizmayı keşfetmesini istiyordu ve
+zaman aşımına uğradı.
 
 ```
 # GİRDİ
-#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/_tarama/24-state-sozlugu.txt
 #file:docs/entry-akis/00b-akis.md
-#file:docs/entry-akis/_tarama/08-erisimciler-top.txt
-#file:docs/entry-akis/_tarama/12-state.txt
 
 # GÖREV
-SADECE paylaşılan state. Servis, DTO, ikiz, grup planı bu turda YOK.
-
-# YÖNTEM
-1. 00a'daki "State taşıma adayları" ve 08-erisimciler-top'u kullan.
-   12-state.txt boşsa mekanizma farklı adlandırılmış; 08'den doğru olanı seç
-   ve kodda doğrula.
-2. CCT'deki ConvID/TaskID zincirinin state taşımadaki rolünü değerlendir —
-   veri conversation scope'unda mı, tab scope'unda mı, request'te mi?
-   00b'deki geçişlerin taşıdığı parametrelerle çapraz kontrol et.
-3. Her veri için: nerede saklanıyor, hangi ekran YAZIYOR, hangi ekran OKUYOR.
+24-state-sozlugu.txt script tarafından üretildi; tabloları DOĞRU kabul et,
+yeniden çıkarma, kod okumaya GİTME. Senin işin yorumlamak.
 
 # ÇIKTI — docs/entry-akis/00c1-state.md
-## 1. State Taşıma Mekanizmaları
-Mekanizma | Kapsam (conversation/tab/request/session) | Kod görünümü | Kanıt
-## 2. Paylaşılan State Sözlüğü
-Veri | Saklandığı yer | Yazan ekran(lar) | Okuyan ekran(lar) | Tip | Akış sonu
-## 3. Boşluklar
-Yazılıp hiç okunmayanlar; okunup hiç yazılmayanlar; aynı verinin farklı
-ekranda farklı isimle taşınması
-## 4. Açık Sorular
+## 1. State Taşıma Mekanizması
+A bölümündeki scope API sayımını yorumla: veri hangi kapsamda taşınıyor
+(tab / conversation / request), taşıyıcı nesneler ne, bu ne anlama geliyor.
+Birden fazla scope türü kullanılıyorsa hangisi ne zaman tercih edilmiş.
+
+## 2. Akış Boyunca Veri Yolculuğu
+C tablosunu 00b-akis.md'deki adım sırasıyla birleştir: hangi alan hangi
+adımda doluyor, hangi adımda tüketiliyor. Sırayla anlat.
+
+## 3. Riskli Alanlar
+- `YAZAN YOK` işaretliler: veri akışa nereden giriyor? Girmezse ne olur?
+- `OKUYAN YOK` işaretliler: yazılıp hiç okunmuyor — ölü veri mi, başka
+  katmanda mı tüketiliyor?
+- Bir alanı birden çok ekran yazıyorsa: sıra bağımlılığı var mı, son yazan
+  kazanıyorsa bu kasıtlı mı?
+
+## 4. Geri Dönüş ve İptal
+Kullanıcı önceki adıma dönerse veya iptal ederse bu alanlara ne oluyor?
+Tablodan çıkarabildiğin kadarını yaz, çıkaramadığını açık soru yap.
+
+## 5. Açık Sorular
 
 # KURAL
-Mekanizma belirsizse "BİLİNMİYOR" yaz, uydurma. İyileştirme yazma.
+Kod okuma. Tabloyu tekrar etme, üzerine yorum yap. İyileştirme yazma.
 ```
 
 ---

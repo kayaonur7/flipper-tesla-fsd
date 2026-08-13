@@ -850,6 +850,129 @@ foreach ($n in @('06-cagri-hedefleri', '07-importlar', '08-erisimciler')) {
 
 ---
 
+## M7 — State sözlüğü
+
+Adım 9a zaman aşımına uğradı: modelden state mekanizmasını *keşfetmesi*
+isteniyordu, yani onlarca java dosyasını açması. Oysa mekanizma deterministik
+olarak çıkarılabiliyor.
+
+Harmoni state'i **scope** API'si üzerinden tipli taşıyıcı nesnelerde tutuyor:
+
+```java
+ApplicationInfo applicationInfo = (ApplicationInfo) cc.getFromTabScope(ApplicationInfo.NAME);
+```
+
+Blok üç şey üretir:
+
+| Bölüm | İçerik |
+|---|---|
+| A | Scope API sayımı — hangi scope türü kaç kez kullanılıyor |
+| B | Ekran başına taşıyıcı nesneler ve scope türü |
+| C | **Alan bazlı okuma/yazma matrisi** — hangi ekran hangi alanı yazıyor, hangisi okuyor |
+
+C bölümü Adım 9a'nın asıl çıktısıydı; artık script üretiyor.
+
+````powershell
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O = "docs\entry-akis\_tarama"
+$devJava = @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })
+
+function Get-Aktif2($path) {
+    $res = New-Object System.Collections.ArrayList
+    $blok = $false; $no = 0
+    foreach ($l in (Get-Content -LiteralPath $path)) {
+        $no++; $t = $l.Trim()
+        if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }
+        if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }
+        if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }
+        [void]$res.Add([PSCustomObject]@{ No = $no; Text = $l })
+    }
+    return $res
+}
+
+$out = New-Object System.Collections.ArrayList
+
+# --- A. scope API sayimi ---
+[void]$out.Add("===== A. scope API kullanimi =====")
+$rxScope = [regex]'\b(\w*(?:get|put|set|remove)From?\w*Scope|\w*Scope)\s*\('
+$sayim = @{}
+foreach ($f in $devJava) {
+    foreach ($ln in (Get-Aktif2 $f.FullName)) {
+        foreach ($m in $rxScope.Matches($ln.Text)) {
+            $k = $m.Groups[1].Value
+            if (-not $sayim.ContainsKey($k)) { $sayim[$k] = 0 }
+            $sayim[$k]++
+        }
+    }
+}
+foreach ($k in ($sayim.Keys | Sort-Object { -$sayim[$_] })) {
+    [void]$out.Add(("  " + $sayim[$k].ToString().PadLeft(5) + "  " + $k))
+}
+
+# --- B. ekran basina tasiyici nesneler ---
+[void]$out.Add(""); [void]$out.Add("===== B. tasiyici nesneler (ekran basina) =====")
+$rxHolder = [regex]'(\w+)\s*=\s*\(\s*([A-Z]\w*)\s*\)\s*\w+\.(\w*Scope\w*|get\w*Scope)\s*\('
+$holders = @{}   # ekran -> [ @{Var;Type;Api} ]
+foreach ($f in $devJava) {
+    $lst = New-Object System.Collections.ArrayList
+    foreach ($ln in (Get-Aktif2 $f.FullName)) {
+        foreach ($m in $rxHolder.Matches($ln.Text)) {
+            [void]$lst.Add([PSCustomObject]@{ Var = $m.Groups[1].Value; Type = $m.Groups[2].Value; Api = $m.Groups[3].Value; No = $ln.No })
+        }
+    }
+    if ($lst.Count -gt 0) {
+        $holders[$f.BaseName] = $lst
+        [void]$out.Add("--- " + $f.BaseName + " ---")
+        foreach ($h in $lst) { [void]$out.Add("  " + $h.Type.PadRight(28) + $h.Var.PadRight(24) + $h.Api + "  (satir " + $h.No + ")") }
+    }
+}
+
+# --- C. alan bazli okuma/yazma matrisi ---
+[void]$out.Add(""); [void]$out.Add("===== C. alan bazli okuma / yazma =====")
+$mat = @{}   # "Type.Field" -> @{ R = @(); W = @() }
+foreach ($f in $devJava) {
+    if (-not $holders.ContainsKey($f.BaseName)) { continue }
+    $varType = @{}
+    foreach ($h in $holders[$f.BaseName]) { $varType[$h.Var] = $h.Type }
+    $aktif = Get-Aktif2 $f.FullName
+    foreach ($v in $varType.Keys) {
+        $rx = [regex]('\b' + [regex]::Escape($v) + '\.(get|set|is)([A-Z]\w*)\s*\(')
+        foreach ($ln in $aktif) {
+            foreach ($m in $rx.Matches($ln.Text)) {
+                $key = $varType[$v] + '.' + $m.Groups[2].Value
+                if (-not $mat.ContainsKey($key)) { $mat[$key] = @{ R = New-Object System.Collections.ArrayList; W = New-Object System.Collections.ArrayList } }
+                if ($m.Groups[1].Value -eq 'set') {
+                    if ($mat[$key].W -notcontains $f.BaseName) { [void]$mat[$key].W.Add($f.BaseName) }
+                } else {
+                    if ($mat[$key].R -notcontains $f.BaseName) { [void]$mat[$key].R.Add($f.BaseName) }
+                }
+            }
+        }
+    }
+}
+[void]$out.Add("| Tasiyici.Alan | YAZAN | OKUYAN | Durum |")
+[void]$out.Add("|---|---|---|---|")
+foreach ($key in ($mat.Keys | Sort-Object)) {
+    $w = @($mat[$key].W); $r = @($mat[$key].R)
+    $durum = "ok"
+    if ($w.Count -eq 0) { $durum = "YAZAN YOK  << disaridan geliyor" }
+    elseif ($r.Count -eq 0) { $durum = "OKUYAN YOK << olu veri" }
+    [void]$out.Add("| " + $key + " | " + ($w -join ', ') + " | " + ($r -join ', ') + " | " + $durum + " |")
+}
+
+Set-Content "$O\24-state-sozlugu.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"scope api cesidi : " + $sayim.Count
+"tasiyicili ekran : " + $holders.Count
+"alan sayisi      : " + $mat.Count
+"24-state-sozlugu : " + $out.Count + " satir"
+````
+
+`YAZAN YOK` = veri akışa dışarıdan giriyor veya başka bir ekran yazıyor olabilir.
+`OKUYAN YOK` = yazılıp hiç okunmayan alan — potansiyel ölü veri. İkisi de
+Adım 9a'nın yorumlayacağı bulgular.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu
