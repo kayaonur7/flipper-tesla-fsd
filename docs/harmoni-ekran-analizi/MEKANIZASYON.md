@@ -650,9 +650,13 @@ foreach ($d in (Get-ChildItem $W -Directory | Sort-Object Name)) {
         }
     }
 
-    # --- yetki ---
+    # --- _auth.properties (rolu dogrulanmadi) ---
     [void]$k.Add("")
-    [void]$k.Add("## Yetki")
+    [void]$k.Add("## _auth.properties İçeriği")
+    [void]$k.Add("")
+    [void]$k.Add("> Dosyanın rolü DOĞRULANMADI. Adı yetki dosyası izlenimi veriyor ama")
+    [void]$k.Add("> dolu olan tek örnek validasyon hata mesajları içeriyor. İçeriğe bak,")
+    [void]$k.Add("> isme göre yorum yapma.")
     [void]$k.Add("")
     $pa = Join-Path $d.FullName ($n + "_auth.properties")
     $bt = [string][char]96

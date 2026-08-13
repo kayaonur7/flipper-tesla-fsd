@@ -29,7 +29,7 @@ src\main\webapp\page\acq\application\entry\PG_ApplicationAccount\
     PG_ApplicationAccount.html
     PG_ApplicationAccount.js
     PG_ApplicationAccount.properties
-    PG_ApplicationAccount_auth.properties    ← YETKİ tanımı
+    PG_ApplicationAccount_auth.properties    ← rolü DOĞRULANMADI, aşağıya bak
     PG_ApplicationAccount_lang_en.json
     PG_ApplicationAccount_lang_tr.json
 ```
@@ -75,7 +75,7 @@ Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 | entry CCT'si | 9 dosya — 19 TASK, 71 TRANSITION |
 | CCT'de TASK'ı olmayan ekran | 4: `PG_AccountWalletPopup`, `PG_AddNote`, `PG_LoyaltyProgramRatePopup`, `PG_TagOperation` — koddan açılan popup'lar |
 | Birden çok conversation'da geçen TASK | `PG_MerchantSecurityCheck`, `PG_PricingTrioEdit` |
-| `_auth.properties` | 15 dosyanın 14'ü **boş** — yetki tanımları doldurulmamış |
+| `_auth.properties` | 15 dosyanın 14'ü **boş**. Dolu olan tek dosya (`PG_TerminalInfo`) **validasyon hata mesajları** içeriyor, yetki tanımı değil — dosyanın rolü doğrulanmadı |
 
 ### M2'nin doğruladığı bulgular
 
@@ -460,7 +460,7 @@ java\...\hmn\acq\application\entry\controllers\
 webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
 webapp\page\acq\application\entry\PG_X\
     PG_X.html, PG_X.js, PG_X.properties,
-    PG_X_auth.properties       yetki tanımı
+    PG_X_auth.properties       rolü DOĞRULANMADI
     PG_X_lang_en.json / PG_X_lang_tr.json
 
 ## CCT olay modeli — DİKKAT
@@ -501,8 +501,12 @@ Geçişler burada deklaratif olarak tanımlı.
    klasöründe olmayan ekranları TASK olarak içeriyor.
 5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
    DTO'lar com.ykb.acq.application.entry.{request,response,util}
-6. _auth.properties dosyalarının 14'ü BOŞ. Bu bir tarama hatası değil,
-   olgudur — yetki tanımları doldurulmamış.
+6. _auth.properties'in ROLÜ DOĞRULANMADI. Adından yetki dosyası sanılabilir
+   ama 15 dosyanın 14'ü boş, dolu olan tek dosya (PG_TerminalInfo) validasyon
+   HATA MESAJLARI içeriyor:
+     INVALID_FINANCIAL_ID_ERROR = Girilen Mali ID ... uygun degil.
+   Bu dosyaya "yetki tanımı" deme. Ne olduğunu framework'ten veya başka
+   akışlardaki örneklerden türet; türetemezsen "BİLİNMİYOR" yaz.
 
 ## Repolar
 FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
