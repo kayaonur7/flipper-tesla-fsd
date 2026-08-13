@@ -1131,6 +1131,97 @@ Adım 9a'nın yorumlayacağı bulgular.
 
 ---
 
+## M8 — Servis × ekran matrisi
+
+Adım 9b "gerçek kesişim BİLİNMİYOR" dedi çünkü girdisi frekans listesiydi;
+hangi ekranın hangi servisi çağırdığı bilgisi yoktu. Bu blok onu üretir.
+
+````powershell
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O = "docs\entry-akis\_tarama"
+$devJava = @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })
+
+function Get-Aktif3($path) {
+    $res = New-Object System.Collections.ArrayList
+    $blok = $false; $no = 0
+    foreach ($l in (Get-Content -LiteralPath $path)) {
+        $no++; $t = $l.Trim()
+        if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }
+        if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }
+        if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }
+        [void]$res.Add([PSCustomObject]@{ No = $no; Text = $l })
+    }
+    return $res
+}
+
+$rxAcq = @(
+    @{ K = 'Cloud';   R = [regex]'RemoteUtility\.getServiceCloudVersion\s*\(\s*(\w+)\.class' },
+    @{ K = 'Kisayol'; R = [regex]'RemoteUtility\.get(?!ServiceCloudVersion)(\w+)\s*\(' },
+    @{ K = 'JABS';    R = [regex]'getRemote\s*\(\s*(\w+)\.class' },
+    @{ K = 'Generic'; R = [regex]'\bgetService\s*\(\s*(\w+)\.class' }
+)
+$rxUse = [regex]'\b([a-z]\w*(?:Controller|Service))\s*\.\s*([a-z]\w*)\s*\('
+
+$edinme = @{}   # servis -> @{ Mek; Ekranlar }
+$cagri  = @{}   # "servis.metot" -> ekranlar
+foreach ($f in $devJava) {
+    foreach ($ln in (Get-Aktif3 $f.FullName)) {
+        foreach ($a in $rxAcq) {
+            foreach ($m in $a.R.Matches($ln.Text)) {
+                $sv = $m.Groups[1].Value
+                if (-not $edinme.ContainsKey($sv)) { $edinme[$sv] = @{ Mek = New-Object System.Collections.ArrayList; Ekranlar = New-Object System.Collections.ArrayList } }
+                if ($edinme[$sv].Mek -notcontains $a.K) { [void]$edinme[$sv].Mek.Add($a.K) }
+                if ($edinme[$sv].Ekranlar -notcontains $f.BaseName) { [void]$edinme[$sv].Ekranlar.Add($f.BaseName) }
+            }
+        }
+        foreach ($m in $rxUse.Matches($ln.Text)) {
+            $k = $m.Groups[1].Value + '.' + $m.Groups[2].Value
+            if (-not $cagri.ContainsKey($k)) { $cagri[$k] = New-Object System.Collections.ArrayList }
+            if ($cagri[$k] -notcontains $f.BaseName) { [void]$cagri[$k].Add($f.BaseName) }
+        }
+    }
+}
+
+$out = New-Object System.Collections.ArrayList
+[void]$out.Add("===== A. Servis edinme: hangi ekran hangi servisi aliyor =====")
+[void]$out.Add("")
+[void]$out.Add("| Servis | Mekanizma | Ekran sayisi | Cagiran ekranlar |")
+[void]$out.Add("|---|---|---|---|")
+foreach ($sv in ($edinme.Keys | Sort-Object { -(@($edinme[$_].Ekranlar).Count) })) {
+    [void]$out.Add("| " + $sv + " | " + (@($edinme[$sv].Mek) -join '/') + " | " + @($edinme[$sv].Ekranlar).Count + " | " + (@($edinme[$sv].Ekranlar) -join ', ') + " |")
+}
+
+[void]$out.Add("")
+[void]$out.Add("===== B. PAYLASILAN servis metotlari (2+ ekran) =====")
+[void]$out.Add("")
+[void]$out.Add("| Servis.Metot | Ekran sayisi | Cagiran ekranlar |")
+[void]$out.Add("|---|---|---|")
+$paylasilan = @($cagri.Keys | Where-Object { @($cagri[$_]).Count -gt 1 } | Sort-Object { -(@($cagri[$_]).Count) })
+foreach ($k in $paylasilan) {
+    [void]$out.Add("| " + $k + " | " + @($cagri[$k]).Count + " | " + (@($cagri[$k]) -join ', ') + " |")
+}
+
+[void]$out.Add("")
+[void]$out.Add("===== C. Ekran basina servis metodu sayisi =====")
+[void]$out.Add("")
+$perEkran = @{}
+foreach ($k in $cagri.Keys) { foreach ($e in $cagri[$k]) { if (-not $perEkran.ContainsKey($e)) { $perEkran[$e] = 0 }; $perEkran[$e]++ } }
+foreach ($e in ($perEkran.Keys | Sort-Object { -$perEkran[$_] })) {
+    [void]$out.Add("  " + $perEkran[$e].ToString().PadLeft(4) + "  " + $e)
+}
+
+Set-Content "$O\25-servis-matrisi.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"servis sayisi        : " + $edinme.Count
+"metot cagrisi cesidi : " + $cagri.Count
+"  2+ ekranda ortak   : " + $paylasilan.Count
+"25-servis-matrisi    : " + $out.Count + " satir"
+````
+
+`B` bölümü 9b'nin aradığı kesişim: birden fazla ekranın çağırdığı servis
+metotları. Aynı veriyi tekrar tekrar çeken çağrılar da buradan görünür.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu

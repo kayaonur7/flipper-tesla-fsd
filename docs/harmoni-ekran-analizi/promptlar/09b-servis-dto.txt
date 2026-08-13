@@ -83,7 +83,7 @@ inquiry, template. ACQ = Acquiring / üye işyeri.
 
 # GİRDİ
 #file:docs/entry-akis/00a-envanter.md
-#file:docs/entry-akis/_tarama/06-cagri-hedefleri-top.txt
+#file:docs/entry-akis/_tarama/25-servis-matrisi.txt
 #file:docs/entry-akis/_tarama/17-dto.txt
 #file:docs/entry-akis/_tarama/14-yetki.txt
 #file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
@@ -94,7 +94,10 @@ State ve grup planı bu turda YOK.
 
 # ÇIKTI — docs/entry-akis/00c2-servis-dto.md
 ## 1. Servis Paylaşım Matrisi
-Servis | Edinme mekanizması | Çağıran ekranlar | Aynı parametrelerle mi
+25-servis-matrisi.txt script tarafından üretildi; tabloları DOĞRU kabul et.
+Yorumla: hangi servisler akışın omurgası (çok ekrandan çağrılan), B
+bölümündeki ortak metotlar aynı veriyi tekrar tekrar mı çekiyor, C
+bölümündeki dağılım dengesiz mi (bir ekran servis çağrısı yığını mı)
 ## 2. DTO Envanteri
 DTO | Paket | İlişkili ekranlar | Alan sayısı | İki adlandırma kalıbından hangisi
 ## 3. _auth.properties
