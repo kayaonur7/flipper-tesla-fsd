@@ -14,18 +14,59 @@ sorusuna gider.
 | M3 | `_tarama/22-lang-durumu.txt` — tr/en farkı, ölü key'ler | Adım 12'nin i18n bölümü |
 | M4 | `ekranlar/<PG_X>.hazir.md` — ekran başına ön-doldurulmuş kart | Adım 12'nin %70'i |
 
-Blokları **sırayla** yapıştır. Hepsi Adım 0'daki değişkenleri kullanır; terminal
-sekmesi değiştiysen önce Adım 0'ı tekrar çalıştır.
+---
+
+## Nasıl çalıştırılır
+
+Üç yol var; ikisi execution policy'ye takılmaz.
+
+**1. Doğrudan terminale yapıştır** — M0, M1, M2, M3 için. VS Code'un entegre
+terminali çok satırlı yapıştırmayı düzgün işler. Blok bittiğinde `>>` istemi
+kalırsa bir kez daha Enter'a bas.
+
+**2. VS Code "Run Selection"** — uzun bloklar (M4) için. Bloğu bir `.ps1`
+dosyasına kaydet, dosyayı aç, `Ctrl+A` → **`F8`**. Bu dosyayı *çalıştırmaz*,
+seçili metni terminale gönderir; execution policy dosya çalıştırmayı engeller,
+metin göndermeyi değil. PowerShell eklentisi kilitli ortamda açılmıyorsa 3. yol.
+
+**3. Copilot agent mode'a çalıştırt** — "aşağıdaki komutları terminalde
+çalıştır, değiştirme, sadece çalıştır" deyip bloğu ver.
+
+### Oturum bağımlılığı
+
+M2, M3 ve M4; M1'in ürettiği `$convs` / `$tasks` / `$trans` değişkenlerine ve
+Adım 0'ın köklerine bağlıdır. Terminal sekmesi kapandıysa veya Adım 7'den
+sonra M4'e dönüyorsan **önce M0'ı çalıştır** — kökleri kurar ve CCT'yi yeniden
+parse eder. M0 dosya yazmaz, sadece belleği doldurur; istediğin kadar
+tekrarlayabilirsin.
+
+### Çalıştırma sırası
+
+```
+M0  oturum kurulumu          (her yeni terminalde)
+M1  CCT -> grafik
+M2  olay <-> handler
+M3  dil durumu
+Adım 7  envanter + konvansiyon        [Copilot]
+M0  (yeni sekmedeysen tekrar)
+M4  kart on-doldurma          ($svcRx'i 00a'ya gore daralt)
+Adım 8'den itibaren devam            [Copilot]
+```
 
 ---
 
-## M1 — CCT'den akış grafiği
+## M0 — Oturum kurulumu
 
-CCT XML'ini parse eder, conversation/task/transition tablolarını ve Mermaid
-grafiğini üretir. Modelin CCT okuyup grafik çizmesine gerek kalmaz.
+Kökleri kurar ve CCT'yi belleğe parse eder. **Her yeni terminalde çalıştır.**
 
 ````powershell
-# --- CCT parse ---
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$JD  = "src\main\java\com\ykb\acq\application\entry"
+$CCT = "src\main\webapp\cct"
+$O   = "docs\entry-akis\_tarama"
+New-Item -ItemType Directory -Force $O, "docs\entry-akis\ekranlar" | Out-Null
+
 $cctEntry = Get-ChildItem $CCT -Recurse -File -Filter *.cct |
     Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match 'acq/application/entry' }
 
@@ -57,12 +98,21 @@ foreach ($f in $cctEntry) {
         }
     }
 }
+"kok kontrol  : W={0} J={1} CCT={2}" -f (Test-Path $W), (Test-Path $J), (Test-Path $CCT)
 "CONVERSATION : " + $convs.Count
 "TASK         : " + $tasks.Count
 "TRANSITION   : " + $trans.Count
 ````
 
-Devamı — tabloları ve Mermaid'i yazar:
+`PARSE HATASI` uyarısı çıkarsa dosya adını not et — o CCT atlanır, kalanlar
+yine işlenir.
+
+---
+
+## M1 — CCT'den akış grafiği
+
+**Önce M0.** M0'ın parse ettiği veriden tabloları ve Mermaid grafiğini yazar.
+Modelin CCT okuyup grafik çizmesine gerek kalmaz.
 
 ````powershell
 $fence = '```'
@@ -125,12 +175,13 @@ Set-Content "docs\entry-akis\00b-akis-otomatik.md" -Value ($md -join "`r`n") -En
 "00b-akis-otomatik.md : " + $md.Count + " satir"
 ````
 
-**Parse hatası uyarısı çıkarsa** o dosyanın adını not et; XML'i bozuk veya
-farklı şemada olabilir. Kalanlar yine üretilir.
+`$convs` boş dönerse M0'ı çalıştırmamışsındır.
 
 ---
 
 ## M2 — Olay ↔ handler eşlemesi
+
+**Önce M0.**
 
 CCT'deki her `ControllerEvent` için java tarafında karşılığı var mı, ve tersi:
 koddaki `onXxx` metotlarından CCT'de tanımsız olan hangileri.
@@ -173,6 +224,8 @@ Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
 
 ## M3 — Dil durumu
 
+**Önce M0.**
+
 Ekran başına tr/en key farkı ve html+js'te hiç geçmeyen ölü key'ler.
 
 ````powershell
@@ -209,6 +262,8 @@ Set-Content "$O\22-lang-durumu.txt" -Value ($out -join "`r`n") -Encoding UTF8
 ---
 
 ## M4 — Ekran kartı ön-doldurucu
+
+**Önce M0.** Uzun blok — `.ps1` dosyasına kaydedip `Ctrl+A` → `F8` en rahatı.
 
 Her ekran için tabloları dolu, yorum bölümleri boş bir kart üretir. Model
 yalnızca `<!-- MODEL -->` işaretli yerleri doldurur.
