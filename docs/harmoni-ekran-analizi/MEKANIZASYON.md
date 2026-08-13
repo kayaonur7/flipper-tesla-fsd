@@ -201,61 +201,123 @@ Set-Content "docs\entry-akis\00b-akis-otomatik.md" -Value ($md -join "`r`n") -En
 
 ---
 
-## M2 — Olay ↔ handler eşlemesi
+## M2 — Olay ↔ handler eşlemesi (sınıflandırmalı)
 
-CCT'deki her `ControllerEvent` için java tarafında karşılığı var mı, ve tersi:
-koddaki `onXxx` metotlarından CCT'de tanımsız olan hangileri.
+Her CCT olayını ve her `onXxx` metodunu **sınıflandırır**. Ham "bulunamadı"
+listesi yanıltıcıydı: handler `PG_` sınıfında değil `Con_` conversation
+controller'ında olabiliyor, ve CCT'de olmayan bir `onXxx` ölü değil js/html'den
+çağrılıyor olabiliyor. Bu sürüm ikisini de ayırır, modele yalnızca gerçekten
+incelenmesi gereken kısa liste kalır.
+
+| Etiket | Anlamı |
+|---|---|
+| `PG` | Handler sayfa sınıfında bulundu |
+| `CON` | Handler conversation controller'ında bulundu |
+| `YOK` | Hiçbir yerde yok — **incelenecek** |
+| `CCT` | `onXxx` CCT'de tanımlı |
+| `UI` | Ekranın js/html dosyasında geçiyor |
+| `KOD` | Java içinden çağrılıyor |
+| `OLU?` | Hiçbir referansı yok — **incelenecek** |
 
 ````powershell
 $J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$W = "src\main\webapp\page\acq\application\entry"
 $O = "docs\entry-akis\_tarama"
 if (-not $trans -or @($trans).Count -eq 0) { $trans = @(Import-Csv "$O\cct-trans.csv") }
-"trans kayit : " + @($trans).Count
+if (-not $convs -or @($convs).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv") }
+
+# ConvID -> Con_ sinif adi
+$convClass = @{}
+foreach ($c in @($convs)) {
+    $ctrl = [string]$c.Controller
+    if ($ctrl) { $convClass[[string]$c.ConvID] = @($ctrl -split '\.')[-1] }
+}
+
+function Find-Method($file, $name) {
+    if (-not (Test-Path $file)) { return $null }
+    $h = @(Select-String -LiteralPath $file -Pattern ('\b' + [regex]::Escape($name) + '\s*\(') -ErrorAction SilentlyContinue)
+    if ($h.Count -gt 0) { return ((Split-Path $file -Leaf) + ':' + $h[0].LineNumber) }
+    return $null
+}
 
 $rows = New-Object System.Collections.ArrayList
-[void]$rows.Add("=== CCT olayi -> java handler ===")
+$sayac = @{ PG = 0; CON = 0; YOK = 0 }
+[void]$rows.Add("=== CCT olayi -> handler ===")
+[void]$rows.Add("PG   : handler sayfa sinifinda")
+[void]$rows.Add("CON  : handler conversation controller'inda")
+[void]$rows.Add("YOK  : hicbir yerde bulunamadi  << incelenecek")
+[void]$rows.Add("")
 foreach ($r in @($trans)) {
     $ev  = [string]$r.CtrlEvent
     $cls = [string]$r.FromPage
-    if ([string]::IsNullOrWhiteSpace($ev))  { continue }
-    if ([string]::IsNullOrWhiteSpace($cls)) { continue }
-    $hit = 'BULUNAMADI'
+    if ([string]::IsNullOrWhiteSpace($ev) -or [string]::IsNullOrWhiteSpace($cls)) { continue }
+    $hit = $null; $kind = 'YOK'
     foreach ($cand in @(($cls + '.java'), ($cls + 'Super.java'))) {
-        $p = Join-Path $J $cand
-        if (-not (Test-Path $p)) { continue }
-        $hits = @(Select-String -LiteralPath $p -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue)
-        if ($hits.Count -gt 0) { $hit = $cand + ':' + $hits[0].LineNumber; break }
+        $hit = Find-Method (Join-Path $J $cand) $ev
+        if ($hit) { $kind = 'PG'; break }
     }
-    [void]$rows.Add(($cls.PadRight(40) + $ev.PadRight(24) + $hit))
+    if (-not $hit) {
+        $cc = $convClass[[string]$r.ConvID]
+        if ($cc) {
+            foreach ($cand in @(($cc + '.java'), ($cc + 'Super.java'))) {
+                $hit = Find-Method (Join-Path $J $cand) $ev
+                if ($hit) { $kind = 'CON'; break }
+            }
+        }
+    }
+    if (-not $hit) { $hit = '-' }
+    $sayac[$kind] = $sayac[$kind] + 1
+    [void]$rows.Add(($kind.PadRight(5) + $cls.PadRight(38) + $ev.PadRight(24) + $hit))
 }
 
 [void]$rows.Add("")
-[void]$rows.Add("=== koddaki onXxx metotlari -> CCT'de var mi ===")
+[void]$rows.Add("=== koddaki onXxx -> nereden cagriliyor ===")
+[void]$rows.Add("CCT  : CCT'de tanimli")
+[void]$rows.Add("UI   : ekranin js/html dosyasinda geciyor")
+[void]$rows.Add("KOD  : java icinden cagriliyor")
+[void]$rows.Add("OLU? : hicbir yerde referansi yok  << incelenecek")
+[void]$rows.Add("")
 $cctEvents = @()
 foreach ($r in @($trans)) {
     if ($r.CtrlEvent) { $cctEvents += [string]$r.CtrlEvent }
     if ($r.Event)     { $cctEvents += [string]$r.Event }
 }
 $cctEvents = @($cctEvents | Sort-Object -Unique)
+$sayac2 = @{ CCT = 0; UI = 0; KOD = 0; OLU = 0 }
 
 foreach ($f in @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })) {
+    $base = $f.BaseName
+    $uiSrc = ''
+    foreach ($ext in @('.js', '.html')) {
+        $p = Join-Path (Join-Path $W $base) ($base + $ext)
+        if (Test-Path $p) { $uiSrc += (Get-Content -LiteralPath $p -Raw) }
+    }
+    $evs = @()
     foreach ($h in @(Select-String -LiteralPath $f.FullName -Pattern '\b(on[A-Z][A-Za-z0-9_]*)\s*\(' -ErrorAction SilentlyContinue)) {
-        $ev = ''
-        if ($h.Matches -and @($h.Matches).Count -gt 0) { $ev = @($h.Matches)[0].Groups[1].Value }
-        if (-not $ev) { continue }
-        $st = 'CCT-DE TANIMSIZ'
-        if ($cctEvents -contains $ev) { $st = 'CCT-de var' }
-        [void]$rows.Add(($f.Name.PadRight(40) + $ev.PadRight(24) + $st + '  (satir ' + $h.LineNumber + ')'))
+        if ($h.Matches -and @($h.Matches).Count -gt 0) { $evs += @($h.Matches)[0].Groups[1].Value }
+    }
+    foreach ($ev in @($evs | Sort-Object -Unique)) {
+        $kind = 'OLU'
+        if ($cctEvents -contains $ev) { $kind = 'CCT' }
+        elseif ($uiSrc -and $uiSrc.Contains($ev)) { $kind = 'UI' }
+        else {
+            $tot = @(Get-ChildItem $J -File -Filter *.java | Select-String -Pattern ('\b' + [regex]::Escape($ev) + '\s*\(') -ErrorAction SilentlyContinue).Count
+            if ($tot -gt 1) { $kind = 'KOD' }
+        }
+        $sayac2[$kind] = $sayac2[$kind] + 1
+        $lbl = $kind; if ($kind -eq 'OLU') { $lbl = 'OLU?' }
+        [void]$rows.Add(($lbl.PadRight(5) + $f.Name.PadRight(38) + $ev))
     }
 }
 
 Set-Content "$O\21-event-handler.txt" -Value ($rows -join "`r`n") -Encoding UTF8
+"CCT olaylari  : PG={0}  CON={1}  YOK={2}" -f $sayac.PG, $sayac.CON, $sayac.YOK
+"Kod onXxx     : CCT={0}  UI={1}  KOD={2}  OLU?={3}" -f $sayac2.CCT, $sayac2.UI, $sayac2.KOD, $sayac2.OLU
 "21-event-handler : " + $rows.Count + " satir"
 ````
 
-> Bu blok bilerek `-f` biçimlendirmesi ve `[0]` indekslemesi kullanmıyor —
-> ilk sürüm "Index must be greater than or equal to zero" hatası veriyordu.
-> Aynı savunmacı yazım M4'te de geçerli.
+`YOK` veya `OLU?` sayısı yüksek kalırsa framework taban sınıfları `$J` dışında
+olabilir; arama kapsamını genişletmek gerekir.
 
 ---
 
