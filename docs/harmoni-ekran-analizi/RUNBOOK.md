@@ -77,6 +77,27 @@ Geçiş grafiği buradan çıkıyor — `startNewProcess` grep'lemeye gerek yok.
 | Birden çok conversation'da geçen TASK | `PG_MerchantSecurityCheck`, `PG_PricingTrioEdit` |
 | `_auth.properties` | 15 dosyanın 14'ü **boş** — yetki tanımları doldurulmamış |
 
+### M2'nin doğruladığı bulgular
+
+Mekanizasyon M2 bloğunun ürettiği, kapsam artefaktları elenmiş bulgu seti.
+Hiç Copilot turu harcanmadan çıktı; Adım 16'da kanıtı hazır girdi olarak
+kullanılacak, model bunları yeniden keşfetmeye çalışmamalı.
+
+| # | Bulgu | Kanıt |
+|---|---|---|
+| 1 | `event236608` — CCT'de tanımlı, kodda üretilmiyor, handler'ı da yok | `PG_ApplicationAccount` TASK'ı |
+| 2 | `GO_TO_TERMINAL` üretiliyor ama hiçbir TRANSITION beklemiyor | `PG_ApplicationPricing.java:1146` |
+| 3 | `GOTO_PRODUCTAUTH` üretiliyor ama hiçbir TRANSITION beklemiyor | `PG_ApplicationPricing.java:1148`, `PG_ApplicationPricingTrio.java:576` |
+| 4 | Handler'ı olmayan 3 CCT olayı | `PG_MerchantUpdate`: `onTblProductsClicked`, `onTrioTableCellClicked`, `onBtnAddNewProduct` |
+
+2 ve 3 ardışık satırlarda duruyor — muhtemelen bir if/else'in iki dalı ve
+ikisi de karşılıksız. `GO_TO_` / `GOTO_` isimlendirme tutarsızlığı da elle
+yazılmış token'lara işaret ediyor.
+
+Sayısal durum: 32 distinct token → 19 lokal, 12 dış paket, 1 ulaşılamaz.
+26 emisyon → 23 entry CCT, 2 dış CCT, 3 ölü sonuç. 45 olay → 25 PG,
+16 dış paket, 4 handler yok.
+
 ### Analizi bozabilecek dört tuzak
 
 1. **`*Super.java` üretilmiş koddur** — ama boş değil. İş mantığı `Super`'siz
