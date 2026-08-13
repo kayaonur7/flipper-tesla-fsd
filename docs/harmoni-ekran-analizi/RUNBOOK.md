@@ -438,6 +438,10 @@ PowerShell taramaları bitti.
 
 ## Sabit başlık (P0)
 
+> **Kopyalaman gerekmiyor:** [promptlar/](./promptlar) altında her adım için
+> P0 birleştirilmiş, kopyala-yapıştır hazır `.txt` dosyaları var. Aşağısı
+> referans içindir.
+
 **Her `[CP]` prompt'unun başına yapıştır.**
 
 ```
@@ -470,6 +474,8 @@ ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
                     public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
                     eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
                   ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
 
 ## CCT — akışın kaynağı
 CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)

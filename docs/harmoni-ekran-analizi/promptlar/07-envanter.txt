@@ -1,0 +1,136 @@
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       yetki tanımı
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties dosyalarının 14'ü BOŞ. Bu bir tarama hatası değil,
+   olgudur — yetki tanımları doldurulmamış.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+# GİRDİ
+#file:docs/entry-akis/_tarama/03-webapp-dosyalar.txt
+#file:docs/entry-akis/_tarama/04-java-envanter.txt
+#file:docs/entry-akis/_tarama/05-ekran-boyutlari.txt
+#file:docs/entry-akis/_tarama/06-cagri-hedefleri.txt
+#file:docs/entry-akis/_tarama/07-importlar.txt
+#file:docs/entry-akis/_tarama/09-metot-imzalari.txt
+
+# GÖREV
+(a) Ekran envanteri, (b) bu kod tabanının KONVANSİYONLARINI türet.
+(b) sonraki tüm turların temeli — özenli ol.
+
+# YÖNTEM
+1. Envanter: her ekran için webapp 6'lısı ve java karşılıkları (PG_, PG_Super,
+   Con_, Con_Super) eşleşiyor mu? Eksik/fazla olanları işaretle.
+2. Sınıflandır: adım sayfası / modal popup / include (paylaşılan) / yardımcı.
+   Kanıt: 09-metot-imzalari ve gerekirse .java ilk 60 satırı. İsim soneki tek
+   başına gerekçe değil.
+3. SUPER vs DEV: 04-java-envanter'e bak. Super dosyaları ortalama kaç satır,
+   dev dosyaları kaç? Dev sınıfların Super'den ne devraldığını bir örnekten
+   türet (bir PG_X.java + PG_XSuper.java çiftini aç).
+4. CON_ SINIFLARININ ROLÜ: Con_acqX conversation controller ne yapıyor?
+   PG_ ile ilişkisi ne? Bir örnekten türet.
+5. YAŞAM DÖNGÜSÜ: 09-metot-imzalari'nda birden çok DEV sınıfında TEKRAR EDEN
+   metot adlarını bul — bunlar framework'ün çağırdığı yaşam döngüsü metotları.
+   Sırasını ve amacını türet.
+6. SERVİS KONVANSİYONU: 06 + 07. Servis benzeri isimler hangi sonekle bitiyor?
+   Servis çağrısı kodda tam olarak nasıl görünüyor?
+7. STATE KONVANSİYONU: 06 ve 07'de ekranlar arası veri taşımaya aday ne var?
+
+# ÇIKTI — docs/entry-akis/00a-envanter.md
+## 1. Ekran Envanteri
+Ekran | Tip | Gerekçe | PG_ satır | Super satır | Con_ var mı | html | js |
+lang key | Eksik dosya | Bir cümlelik rol
+
+## 2. Türetilen Konvansiyonlar
+### Super / Dev ayrımı
+Super'de ne var, dev sınıfta ne var, örnek çiftten kanıt
+### Con_ conversation controller'ın rolü
+### Yaşam döngüsü metotları
+Metot | Kaç DEV sınıfında | Türetilen amaç | Kanıt (dosya:satır)
+### Servis çağrısı deseni
+Sonek, kodda görünümü, örnek satır
+### State taşıma adayları
+Aday | Neden aday | Kanıt
+### Sonraki turlar için ARAMA DESENLERİ
+Servis çağrısı, state erişimi, olay tetikleme için somut desenler
+
+## 3. Boyut Dağılımı
+En büyük 5 ekran (web + java ayrı)
+
+## 4. Anomaliler
+Eksik dosya, Super'i olmayan PG_, PG_'si olmayan Super, isim konvansiyonu
+dışına çıkanlar
+
+# KURAL
+Akış grafiği, state sözlüğü, validasyon analizine GİRME. İyileştirme yazma.

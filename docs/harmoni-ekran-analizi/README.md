@@ -18,6 +18,7 @@ Diğer dosyalar:
 |---|---|
 | [RUNBOOK.md](./RUNBOOK.md) | **Doğrusal koşu.** Adım 0-6 PowerShell taramaları, Adım 7-16 Copilot turları |
 | [MEKANIZASYON.md](./MEKANIZASYON.md) | **Maliyet düşürücü.** Çıkarımı script'e devreder: CCT'den otomatik akış grafiği, olay↔handler eşlemesi, dil durumu, ön-doldurulmuş ekran kartları. Opus turunu 16'dan 5-6'ya indirir |
+| [promptlar/](./promptlar) | **Kopyala-yapıştır hazır promptlar.** Her Copilot adımı için P0 birleştirilmiş tek dosya |
 | [PROMPTS.md](./PROMPTS.md) | Referans: blokların ayrıntılı sürümü, tek ekran modu, çok büyük ekran bölme |
 | Bu dosya | Arka plan: tasarım gerekçeleri, ortam kurulumu, sorun giderme |
 

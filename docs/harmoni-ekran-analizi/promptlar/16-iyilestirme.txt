@@ -1,0 +1,146 @@
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       yetki tanımı
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties dosyalarının 14'ü BOŞ. Bu bir tarama hatası değil,
+   olgudur — yetki tanımları doldurulmamış.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+# GİRDİ
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/00c-plan.md
+#file:docs/entry-akis/90-konsolidasyon.md
+
+# GÖREV
+entry akışı için iyileştirme alanlarını çıkar. Kod yazma, plan üret.
+Dokümanlar doğrulandı ama iddia ettiğin her problemi kodda TEKRAR doğrula.
+
+# EKSENLER — AKIŞ SEVİYESİ
+1. Adım yapısı: gereksiz/birleştirilebilir TASK'lar, ileri-geri gezdirme
+2. State taşıma: mekanizmanın kırılganlığı, geri dönüşte kaybolan veya
+   temizlenmeyen state, yarıda kalan başvuru, oturum kopmasında veri kaybı
+3. Ekranlar arası tutarsızlık: aynı alanın farklı doğrulanması, aynı kavramın
+   farklı isim/tiple taşınması
+4. CCT hijyeni: ulaşılamayan TASK, handler'ı olmayan Event, boş NextConvID ile
+   kalan çıkmazlar, DECISION dallarının kapsanmaması
+5. İkiz ekranların konsolidasyonu: birleştirme mi, ortak parçayı çıkarma mı,
+   olduğu gibi bırakma mı — gerekçesiyle
+6. Include kullanımı: paylaşılan sayfaların sözleşmesi net mi, sürprizli
+   bağımlılık var mı
+7. Modal/popup: bloklayıcılık, iptalde parent'ta kalan yarım state, dönüş
+   değerinin doğrulanmaması
+
+# EKSENLER — EKRAN SEVİYESİ
+8. Validasyon boşluğu: sadece js'te olan (atlatılabilir) kurallar; BE'de olup
+   UI'a yansımayan hatalar; FE-BE çelişkileri
+9. Yetki: _auth.properties ile kod içi kontrolün uyuşmaması, tanımsız ekran
+10. Sözleşme sağlığı: DTO-UI uyuşmazlıkları, Jackson anotasyon eksikleri
+11. Kullanıcı geri bildirimi: sessizce yutulan hatalar, teknik mesajlar,
+    loading/empty/kısmi veri eksikliği
+12. Dayanıklılık: timeout/retry eksikleri, HopeReportGenerator senkron rapor
+    riski, exception yutan catch'ler, yarım işlemde tutarlılık
+13. Performans: adım geçişlerinde tekrar eden çağrılar, N+1, seri çağrılar
+14. i18n: eksik key, hardcoded metin, ölü key
+15. Güvenlik: istemci tarafı yetki kontrolü, loglara düşen PII/işyeri verisi,
+    bağımlılık sürümleri (Jackson 2.9.6 — doğrula, risk varsa NOT olarak yaz)
+16. Değişim riski: hangi karakterizasyon testleri önce yazılmalı
+17. İzolasyon fırsatları
+
+# HER BULGU İÇİN
+### [B-01] <Kısa başlık>
+- Eksen / Kapsam (akış geneli veya ekran)
+- Kanıt: dosya:satır — kodda tam olarak ne var.
+  ÜRETİLMİŞ Super dosyasına dayanan bulgu YAZMA.
+- Neden problem: SOMUT başarısızlık senaryosu (hangi input/durum → hangi yanlış
+  sonuç). "Best practice değil" KABUL EDİLMEZ
+- Etki: kullanıcı + teknik
+- Önerilen çözüm: somut yaklaşım, hangi dosyalar değişir
+  (üretilmiş dosyalar değişecekse ÜRETİCİ ŞABLONU sorunudur, ayrıca belirt)
+- Etkilenen diğer ekran/akış/include
+- Nasıl geri alınır / kırılırsa nereden anlarız
+- Efor S/M/L — Risk düşük/orta/yüksek
+- Alternatifler ve neden bunu seçtin
+
+# ÇIKTI — docs/entry-akis/99-iyilestirme.md
+1. Bulgular, etki × efor sıralı
+2. QUICK WINS (S + düşük risk)
+3. YAPISAL DEĞİŞİKLİKLER (M/L), before/after Mermaid
+4. DAVRANIŞ KORUYAN / DAVRANIŞ DEĞİŞTİREN ayrı listeler
+5. ÖNCE YAZILMASI GEREKEN TESTLER — akış ve ekran seviyesi ayrı
+6. BİLİNÇLİ OLARAK ÖNERMEDİKLERİM
+
+# KURAL
+"Yeniden yazalım / modern framework'e taşıyalım / mimariyi değiştirelim"
+YASAK. Her öneri mevcut yapı içinde, artımlı, geri alınabilir olmalı.
+Kanıtı olmayan bulgu yazma. En fazla 15 bulgu. Kod yazma.

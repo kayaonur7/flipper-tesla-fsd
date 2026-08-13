@@ -1,0 +1,106 @@
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       yetki tanımı
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties dosyalarının 14'ü BOŞ. Bu bir tarama hatası değil,
+   olgudur — yetki tanımları doldurulmamış.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+# GİRDİ
+#file:docs/entry-akis/00a-envanter.md
+#file:docs/entry-akis/00c-plan.md
+#file:docs/entry-akis/ekranlar/<PG_X>.hazir.md
+#file:docs/entry-akis/ekranlar/<PG_Y>.hazir.md
+#file:docs/entry-akis/_tarama/22-lang-durumu.txt
+Kaynak: #file:<PG_X.java> #file:<PG_X.html> #file:<PG_X.js> (her ekran için)
+
+# GÖREV
+Kartlardaki tablolar script tarafından dolduruldu — DOĞRU kabul et, yeniden
+üretme, değiştirme. Sadece `<!-- MODEL -->` işaretli bölümleri doldur.
+
+Her bölüm için:
+- Künye ve Rol: ekran ne işe yarıyor, akıştaki yeri
+- Akış Sözleşmesi: akış state'inden NEYİ OKUYOR / NEYİ YAZIYOR, veri gelmezse
+  ne oluyor
+- Yaşam Döngüsü: 00a'daki konvansiyon metotları bu ekranda ne yapıyor
+- İç Akışlar: mutlu yol + hata yolları, Mermaid sequence
+- Validasyon Değerlendirmesi: karttaki aday satırları değerlendir — hangisi
+  gerçek kural, NEREDE uygulanıyor, sadece js'te olan hangisi
+- Yetki Değerlendirmesi: _auth.properties boşsa kontrol kodda mı, hiç mi yok
+- Dialog, Ölü Kod, Açık Sorular
+
+# KURAL
+Üretilmiş Super sınıflarından iş kuralı çıkarma; yapısal sözleşme için oku.
+Kod bloğu yapıştırma. İyileştirme yazma.
+Çıktıyı aynı dosyaya yaz (`.hazir.md`), tabloları koruyarak.
