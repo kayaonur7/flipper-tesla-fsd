@@ -1361,11 +1361,46 @@ foreach ($ad in $gruplar.Keys) {
     Set-Content (Join-Path $OUT "$ad.txt") -Value $metin -Encoding UTF8
     "{0,-24} {1} ekran, {2} satir" -f $ad, $ekranlar.Count, @($metin -split "`r`n").Count
 }
+
+# --- Konsolidasyon promptu: $gruplar'daki tum kartlari girdi yapar ---
+$TPL13 = $TPL -replace '12-ekran-karti\.txt$', '13-konsolidasyon.txt'
+if (Test-Path $TPL13) {
+    $s13 = Get-Content -LiteralPath $TPL13 -Raw -Encoding UTF8
+    $k13 = $s13.IndexOf("# GİRDİ"); $g13 = $s13.IndexOf("# GÖREV")
+    $tumEkran = @(); foreach ($ad in $gruplar.Keys) { foreach ($e in $gruplar[$ad]) { $tumEkran += ($e -split ':')[0] } }
+    $tumEkran = @($tumEkran | Sort-Object -Unique)
+
+    $gi = New-Object System.Collections.ArrayList
+    [void]$gi.Add("# GİRDİ")
+    foreach ($f in @('00b-akis.md', '00c1-state.md', '00c2-servis-dto.md', '00c3-plan.md')) { [void]$gi.Add("#file:docs/entry-akis/$f") }
+    foreach ($e in $tumEkran) {
+        $kart = "docs/entry-akis/ekranlar/$e.hazir.md"
+        if (Test-Path $kart) { [void]$gi.Add("#file:$kart") }
+    }
+    [void]$gi.Add("")
+    [void]$gi.Add("# KAPSAM UYARISI")
+    [void]$gi.Add("Bu KISMI bir konsolidasyondur. Ekran kartı üretilmiş olanlar:")
+    [void]$gi.Add("  " + ($tumEkran -join ', '))
+    [void]$gi.Add("Toplam 14 ekranlık akışın " + $tumEkran.Count + " ekranı kapsanıyor.")
+    [void]$gi.Add("Kartı olmayan ekranlar için ÇIKARIM YAPMA; ilgili satıra")
+    [void]$gi.Add("'KART YOK - kapsam disi' yaz. Çıktının başına kapsam notu koy.")
+    [void]$gi.Add("")
+
+    $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n"
+    Set-Content (Join-Path $OUT "90-konsolidasyon.txt") -Value $m13 -Encoding UTF8
+    "{0,-24} {1} kart" -f "90-konsolidasyon", $tumEkran.Count
+} else { "13-konsolidasyon.txt bulunamadi, atlandi: $TPL13" }
+
 "--- uretildi: " + $OUT
 ````
 
-Çıktı: `docs/entry-akis/promptlar-12/<grup>.txt`. Her biri tek parça —
-aç, `Ctrl+A`, `Ctrl+C`, yeni Copilot chat'e yapıştır.
+Çıktı: `docs/entry-akis/promptlar-12/<grup>.txt`, artı
+`promptlar-12/90-konsolidasyon.txt` — Adım 13'ün promptu, `$gruplar`'daki tüm
+kartları girdi alır ve **kapsam uyarısı** içerir: kartı olmayan ekranlar için
+çıkarım yapılmasını yasaklar. Kısmi koşularda bu şart, yoksa model kapsamadığı
+ekranlar hakkında da hüküm verir.
+
+Her biri tek parça — aç, `Ctrl+A`, `Ctrl+C`, yeni Copilot chat'e yapıştır.
 
 `BULUNAMAYAN DOSYALAR` bölümü çıkarsa ekran adı yanlış yazılmış demektir;
 `$gruplar`'ı düzelt ve tekrar çalıştır.
