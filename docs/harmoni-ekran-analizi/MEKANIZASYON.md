@@ -1377,10 +1377,12 @@ if (Test-Path $TPL13) {
     $gi = New-Object System.Collections.ArrayList
     [void]$gi.Add("# GİRDİ")
     foreach ($f in @('00b-akis.md', '00c1-state.md', '00c2-servis-dto.md', '00c3-plan.md')) { [void]$gi.Add("#file:docs/entry-akis/$f") }
-    foreach ($e in $tumEkran) {
-        $kart = "docs/entry-akis/ekranlar/$e.hazir.md"
-        if (Test-Path $kart) { [void]$gi.Add("#file:$kart") }
-    }
+    # Kartlarin tamamini vermek konsolidasyonu zaman asimina ugratiyor.
+    # M11'in urettigi ozet dosyalari kullanilir; parca basina biri.
+    $ozetler = @{ '90a-akis-state-validasyon' = '27a-ozet-akis'
+                  '90b-yetki-sozlesme-servis' = '27b-ozet-sozlesme'
+                  '90c-tekrar-i18n-kapsam'    = '27c-ozet-tekrar'
+                  '90-konsolidasyon'          = '27a-ozet-akis' }
     [void]$gi.Add("")
     [void]$gi.Add("# KAPSAM UYARISI")
     [void]$gi.Add("Bu KISMI bir konsolidasyondur. Ekran kartı üretilmiş olanlar:")
@@ -1426,6 +1428,12 @@ if (Test-Path $TPL13) {
     foreach ($pc in $parcalar) {
         $gi2 = New-Object System.Collections.ArrayList
         foreach ($x in $gi) { [void]$gi2.Add($x) }
+        $oz = $ozetler[$pc.Ad]
+        if ($oz) {
+            $ozYol = "docs/entry-akis/$oz.md"
+            if (Test-Path $ozYol) { [void]$gi2.Insert(1, "#file:$ozYol") }
+            else { [void]$gi2.Insert(1, "# OZET YOK: $ozYol  (M11 calistir)") }
+        }
         foreach ($x in $pc.Ek) { [void]$gi2.Insert(1, "#file:$x") }
         $ek = @"
 
@@ -1460,11 +1468,86 @@ zaman aşımı alındı. Script kapsama göre üretir:
 
 - **Kısmi kapsam (<14 ekran)** → tek dosya `90-konsolidasyon.txt`, 5 bölüm.
   Kalan bölümler tam kapsam ister, kısmi koşuda yanıltıcı olur.
+Her konsolidasyon promptu 14 kart yerine **M11'in ürettiği tek özet dosyasını**
+okur; kartların tamamı Sonnet'te bile sığmıyordu.
+
 - **Tam kapsam (14 ekran)** → üç dosya, sırayla çalıştırılır:
   `90a-akis-state-validasyon` (bölüm 1-3) →
   `90b-yetki-sozlesme-servis` (4-7) →
   `90c-tekrar-i18n-kapsam` (8-11). `90c` ilk ikisinin çıktısını da girdi alır
   ve açık soruları birleştirir.
+
+---
+
+## M11 — Kart özetleri
+
+14 kartın tamamı konsolidasyona sığmıyor (Sonnet'te bile zaman aşımı). Kartların
+çoğu da her turda gerekli değil: 90a'ya catch blokları tablosu lazım değil,
+90b'ye dil durumu lazım değil.
+
+Bu blok her kartdan **yalnızca ilgili bölümleri** çekip üç özet dosyası üretir.
+Konsolidasyon turları 14 kart yerine tek özet dosyası okur.
+
+````powershell
+$O  = "docs\entry-akis\_tarama"
+$EK = "docs\entry-akis\ekranlar"
+$SATIR_LIMIT = 60   # bolum basina azami satir
+
+$parca = [ordered]@{
+    '27a-ozet-akis' = @('Künye ve Rol', 'Künye', 'Akış Sözleşmesi', 'İç Akışlar',
+                        'Validasyon Aday Satırları', 'Validasyon Değerlendirmesi',
+                        'Dialog ve Geri Bildirim')
+    '27b-ozet-sozlesme' = @('CCT Künyesi', 'Olaylar', 'Bağımlı Olunan Servisler',
+                            'Çağrılan Servis Metotları', 'Veri Sözleşmesi',
+                            '_auth.properties İçeriği', 'Catch Blokları')
+    '27c-ozet-tekrar' = @('Dil Durumu', 'Dahil Edilen Sayfalar', 'Kullanılan DTO / Model import',
+                          'Ölü ve Şüpheli Kod', 'Açık Sorular', 'Grup İçi Karşılaştırma')
+}
+
+$kartlar = @(Get-ChildItem $EK -File -Filter *.hazir.md | Sort-Object Name)
+"kart sayisi: " + $kartlar.Count
+
+foreach ($ad in $parca.Keys) {
+    $istenen = $parca[$ad]
+    $out = New-Object System.Collections.ArrayList
+    [void]$out.Add("# Kart özetleri — $ad")
+    [void]$out.Add("")
+    [void]$out.Add("Her ekrandan yalnızca bu turda gereken bölümler alındı.")
+    [void]$out.Add("Tam kartlar: docs/entry-akis/ekranlar/*.hazir.md")
+    [void]$out.Add("")
+    foreach ($k in $kartlar) {
+        $ekran = $k.BaseName -replace '\.hazir$', ''
+        [void]$out.Add("")
+        [void]$out.Add("# ===== $ekran =====")
+        $ls = @(Get-Content -LiteralPath $k.FullName -Encoding UTF8)
+        $al = $false; $sayac = 0; $baslik = ''
+        foreach ($l in $ls) {
+            if ($l -match '^#{2,3}\s+(.+?)\s*$') {
+                $h = $Matches[1].Trim()
+                $al = $false
+                foreach ($i in $istenen) { if ($h -like ($i + '*')) { $al = $true; break } }
+                if ($al) { $baslik = $h; $sayac = 0; [void]$out.Add(""); [void]$out.Add("## " + $h) }
+                continue
+            }
+            if (-not $al) { continue }
+            if ($sayac -ge $SATIR_LIMIT) {
+                if ($sayac -eq $SATIR_LIMIT) { [void]$out.Add("  ... (" + $baslik + " kırpıldı, tamamı kartta)"); $sayac++ }
+                continue
+            }
+            if ($l.Trim() -eq '<!-- MODEL -->') { continue }
+            [void]$out.Add($l.TrimEnd()); $sayac++
+        }
+    }
+    Set-Content (Join-Path "docs\entry-akis" ($ad + ".md")) -Value ($out -join "`r`n") -Encoding UTF8
+    "{0,-22} {1} satir" -f $ad, $out.Count
+}
+````
+
+Üç dosya `docs/entry-akis/` altına yazılır. M10 konsolidasyon promptlarını
+bunlara bağlar — 14 kart yerine tek dosya.
+
+`... kırpıldı` satırı görürsen o bölüm 60 satırı aşmış; gerekiyorsa
+`$SATIR_LIMIT`'i yükselt, ama girdi yeniden şişer.
 
 ---
 
