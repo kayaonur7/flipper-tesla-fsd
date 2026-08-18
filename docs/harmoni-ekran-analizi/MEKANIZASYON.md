@@ -1312,6 +1312,10 @@ $tasks  = @(Import-Csv "$O\cct-tasks.csv")
 $kesim = $sablon.IndexOf("# GİRDİ")
 if ($kesim -lt 0) { Write-Error "Sablonda '# GİRDİ' bulunamadi"; return }
 $bas = $sablon.Substring(0, $kesim)
+# Uretilen her promptun en ustune model uyarisi: bu kurulumda Opus turlari
+# zaman asimina ugruyor, Sonnet turlari bitiyor.
+$modelNot = "# ÇALIŞTIRMA: Copilot agent mode, model = Claude Sonnet." + [Environment]::NewLine +
+            "# Opus bu kurulumda zaman aşımına uğruyor — Opus SEÇME." + [Environment]::NewLine + [Environment]::NewLine
 # GOREV ve sonrasini al
 $gorevIx = $sablon.IndexOf("# GÖREV")
 $son = $sablon.Substring($gorevIx)
@@ -1357,7 +1361,7 @@ foreach ($ad in $gruplar.Keys) {
     [void]$kap.Add("Yalnızca alan/widget sözleşmesi ve included page için aç; iş mantığı arama.")
     [void]$kap.Add("")
 
-    $metin = $bas.TrimEnd() + "`r`n`r`n" + (($girdi + $kap) -join "`r`n") + "`r`n" + $son.Trim() + "`r`n"
+    $metin = $modelNot + $bas.TrimEnd() + "`r`n`r`n" + (($girdi + $kap) -join "`r`n") + "`r`n" + $son.Trim() + "`r`n"
     Set-Content (Join-Path $OUT "$ad.txt") -Value $metin -Encoding UTF8
     "{0,-24} {1} ekran, {2} satir" -f $ad, $ekranlar.Count, @($metin -split "`r`n").Count
 }
@@ -1431,7 +1435,7 @@ $(($pc.Bolumler | ForEach-Object { '  ' + $_ }) -join "`r`n")
 Çıktı dosyası: docs/entry-akis/$($pc.Ad).md
 Atlanan bölümler başka turlarda üretiliyor; onlar hakkında not düşme.
 "@
-        $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi2 -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n" + $ek + "`r`n"
+        $m13 = $modelNot + $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi2 -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n" + $ek + "`r`n"
         Set-Content (Join-Path $OUT ($pc.Ad + ".txt")) -Value $m13 -Encoding UTF8
         "{0,-28} {1} kart, {2} bolum" -f $pc.Ad, $tumEkran.Count, $pc.Bolumler.Count
     }
