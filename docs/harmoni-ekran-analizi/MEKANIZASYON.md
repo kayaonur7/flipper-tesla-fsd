@@ -1386,31 +1386,55 @@ if (Test-Path $TPL13) {
     [void]$gi.Add("'KART YOK - kapsam disi' yaz. Çıktının başına kapsam notu koy.")
     [void]$gi.Add("")
 
-    # KISMI kosuda cikti bolumlerini daralt: 14 ekranin bir kismiyla
-    # "birlesik veri sozlesmesi" veya "i18n butunlugu" anlamli doldurulamaz,
-    # ve 11 bolumluk uretim zaman asimina ugruyor.
+    # Cikti 11 bolum + 14 kart tek turda bitmiyor. Bolum gruplarina ayir.
+    # Kismi kosuda (14'ten az ekran) zaten 5 bolum yeterli, tek dosya.
     $kismi = ($tumEkran.Count -lt 14)
-    $ek = ""
     if ($kismi) {
+        $parcalar = @(
+            @{ Ad = '90-konsolidasyon'; Bolumler = @(
+                '1. Uçtan Uca Senaryolar  (yalnızca kapsanan ekranların dahil olduğu yollar)',
+                '2. Akış State Bütünlüğü',
+                '3. Validasyon Tutarlılık Matrisi',
+                '4. Tekrarlanan Mantık Haritası',
+                '5. Açık Sorular'); Ek = @() }
+        )
+    } else {
+        $parcalar = @(
+            @{ Ad = '90a-akis-state-validasyon'; Bolumler = @(
+                '1. Uçtan Uca Senaryolar',
+                '2. Akış State Bütünlüğü',
+                '3. Validasyon Tutarlılık Matrisi'); Ek = @() },
+            @{ Ad = '90b-yetki-sozlesme-servis'; Bolumler = @(
+                '4. Yetki Tutarlılığı',
+                '5. Birleşik Veri Sözleşmesi',
+                '6. Servis Çağrı Envanteri',
+                '7. Olay/CCT Bütünlüğü'); Ek = @() },
+            @{ Ad = '90c-tekrar-i18n-kapsam'; Bolumler = @(
+                '8. Tekrarlanan Mantık Haritası',
+                '9. i18n Bütünlüğü',
+                '10. Kapsam Dışına Bağımlılıklar',
+                '11. Açık Sorular  (90a ve 90b çıktılarındaki soruları da topla)');
+                Ek = @('docs/entry-akis/90a-akis-state-validasyon.md',
+                       'docs/entry-akis/90b-yetki-sozlesme-servis.md') }
+        )
+    }
+
+    foreach ($pc in $parcalar) {
+        $gi2 = New-Object System.Collections.ArrayList
+        foreach ($x in $gi) { [void]$gi2.Add($x) }
+        foreach ($x in $pc.Ek) { [void]$gi2.Insert(1, "#file:$x") }
         $ek = @"
 
-# BU KOSUDA ÇIKTI BÖLÜMLERİ DARALTILDI
-Kapsam $($tumEkran.Count)/14 ekran olduğu için yalnızca şu bölümleri yaz:
-  1. Uçtan Uca Senaryolar  (yalnızca kapsanan ekranların dahil olduğu yollar)
-  2. Akış State Bütünlüğü
-  3. Validasyon Tutarlılık Matrisi
-  4. Tekrarlanan Mantık Haritası
-  5. Açık Sorular
-Şablondaki DİĞER BÖLÜMLERİ YAZMA (birleşik veri sözleşmesi, servis envanteri,
-yetki, olay/CCT bütünlüğü, i18n, kapsam dışı bağımlılıklar) — bunlar tam
-kapsam gerektirir, kısmi koşuda yanıltıcı olur.
-Çıktının başına tek satır: "KAPSAM: $($tumEkran.Count)/14 ekran, kısmi konsolidasyon".
+# BU TURDA YAZILACAK BÖLÜMLER
+Şablondaki çıktı listesinden YALNIZCA şunları yaz, diğerlerini ATLA:
+$(($pc.Bolumler | ForEach-Object { '  ' + $_ }) -join "`r`n")
+Çıktı dosyası: docs/entry-akis/$($pc.Ad).md
+Atlanan bölümler başka turlarda üretiliyor; onlar hakkında not düşme.
 "@
+        $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi2 -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n" + $ek + "`r`n"
+        Set-Content (Join-Path $OUT ($pc.Ad + ".txt")) -Value $m13 -Encoding UTF8
+        "{0,-28} {1} kart, {2} bolum" -f $pc.Ad, $tumEkran.Count, $pc.Bolumler.Count
     }
-    $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n" + $ek + "`r`n"
-    Set-Content (Join-Path $OUT "90-konsolidasyon.txt") -Value $m13 -Encoding UTF8
-    $et = "tam"; if ($kismi) { $et = "KISMI - 5 bolum" }
-    "{0,-24} {1} kart  ({2})" -f "90-konsolidasyon", $tumEkran.Count, $et
 } else { "13-konsolidasyon.txt bulunamadi, atlandi: $TPL13" }
 
 "--- uretildi: " + $OUT
@@ -1427,11 +1451,16 @@ Her biri tek parça — aç, `Ctrl+A`, `Ctrl+C`, yeni Copilot chat'e yapıştır
 `BULUNAMAYAN DOSYALAR` bölümü çıkarsa ekran adı yanlış yazılmış demektir;
 `$gruplar`'ı düzelt ve tekrar çalıştır.
 
-**Kısmi konsolidasyon.** `$gruplar` 14 ekranın tamamını kapsamıyorsa üretilen
-`90-konsolidasyon.txt` çıktı bölümlerini beşe indirir (senaryolar, state
-bütünlüğü, validasyon matrisi, tekrarlanan mantık, açık sorular). Kalan
-bölümler tam kapsam ister; kısmi koşuda hem yanıltıcı olur hem de 11 bölümlük
-üretim zaman aşımına uğrar — ilk denemede öyle oldu.
+**Konsolidasyon bölünmesi.** 11 bölüm + 14 kart tek turda bitmiyor; iki kez
+zaman aşımı alındı. Script kapsama göre üretir:
+
+- **Kısmi kapsam (<14 ekran)** → tek dosya `90-konsolidasyon.txt`, 5 bölüm.
+  Kalan bölümler tam kapsam ister, kısmi koşuda yanıltıcı olur.
+- **Tam kapsam (14 ekran)** → üç dosya, sırayla çalıştırılır:
+  `90a-akis-state-validasyon` (bölüm 1-3) →
+  `90b-yetki-sozlesme-servis` (4-7) →
+  `90c-tekrar-i18n-kapsam` (8-11). `90c` ilk ikisinin çıktısını da girdi alır
+  ve açık soruları birleştirir.
 
 ---
 
