@@ -1386,9 +1386,31 @@ if (Test-Path $TPL13) {
     [void]$gi.Add("'KART YOK - kapsam disi' yaz. Çıktının başına kapsam notu koy.")
     [void]$gi.Add("")
 
-    $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n"
+    # KISMI kosuda cikti bolumlerini daralt: 14 ekranin bir kismiyla
+    # "birlesik veri sozlesmesi" veya "i18n butunlugu" anlamli doldurulamaz,
+    # ve 11 bolumluk uretim zaman asimina ugruyor.
+    $kismi = ($tumEkran.Count -lt 14)
+    $ek = ""
+    if ($kismi) {
+        $ek = @"
+
+# BU KOSUDA ÇIKTI BÖLÜMLERİ DARALTILDI
+Kapsam $($tumEkran.Count)/14 ekran olduğu için yalnızca şu bölümleri yaz:
+  1. Uçtan Uca Senaryolar  (yalnızca kapsanan ekranların dahil olduğu yollar)
+  2. Akış State Bütünlüğü
+  3. Validasyon Tutarlılık Matrisi
+  4. Tekrarlanan Mantık Haritası
+  5. Açık Sorular
+Şablondaki DİĞER BÖLÜMLERİ YAZMA (birleşik veri sözleşmesi, servis envanteri,
+yetki, olay/CCT bütünlüğü, i18n, kapsam dışı bağımlılıklar) — bunlar tam
+kapsam gerektirir, kısmi koşuda yanıltıcı olur.
+Çıktının başına tek satır: "KAPSAM: $($tumEkran.Count)/14 ekran, kısmi konsolidasyon".
+"@
+    }
+    $m13 = $s13.Substring(0, $k13).TrimEnd() + "`r`n`r`n" + ($gi -join "`r`n") + "`r`n" + $s13.Substring($g13).Trim() + "`r`n" + $ek + "`r`n"
     Set-Content (Join-Path $OUT "90-konsolidasyon.txt") -Value $m13 -Encoding UTF8
-    "{0,-24} {1} kart" -f "90-konsolidasyon", $tumEkran.Count
+    $et = "tam"; if ($kismi) { $et = "KISMI - 5 bolum" }
+    "{0,-24} {1} kart  ({2})" -f "90-konsolidasyon", $tumEkran.Count, $et
 } else { "13-konsolidasyon.txt bulunamadi, atlandi: $TPL13" }
 
 "--- uretildi: " + $OUT
@@ -1404,6 +1426,12 @@ Her biri tek parça — aç, `Ctrl+A`, `Ctrl+C`, yeni Copilot chat'e yapıştır
 
 `BULUNAMAYAN DOSYALAR` bölümü çıkarsa ekran adı yanlış yazılmış demektir;
 `$gruplar`'ı düzelt ve tekrar çalıştır.
+
+**Kısmi konsolidasyon.** `$gruplar` 14 ekranın tamamını kapsamıyorsa üretilen
+`90-konsolidasyon.txt` çıktı bölümlerini beşe indirir (senaryolar, state
+bütünlüğü, validasyon matrisi, tekrarlanan mantık, açık sorular). Kalan
+bölümler tam kapsam ister; kısmi koşuda hem yanıltıcı olur hem de 11 bölümlük
+üretim zaman aşımına uğrar — ilk denemede öyle oldu.
 
 ---
 
