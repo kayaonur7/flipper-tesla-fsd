@@ -1278,6 +1278,100 @@ eklenerek).
 
 ---
 
+## M10 — Adım 12 promptlarını üret
+
+Grup kararı yargıdır (`00c3-plan.md`'den gelir), dosya yolları değildir. Bu blok
+grup listesini alır ve her grup için **kopyala-yapıştır hazır** bir prompt
+dosyası yazar: P0 + görev metni + doldurulmuş `# GİRDİ` ve `# BU TURUN KAPSAMI`.
+Hangi ekranın hangi CCT'de olduğunu `cct-tasks.csv`'den bulur.
+
+Yalnızca `$gruplar` ve `$TPL` satırlarını düzenle.
+
+````powershell
+$W   = "src\main\webapp\page\acq\application\entry"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O   = "docs\entry-akis\_tarama"
+$OUT = "docs\entry-akis\promptlar-12"
+# 12-ekran-karti.txt'nin bulundugu yol (harmoni-ekran-analizi checkout'u)
+$TPL = "D:\Repo\flipper-tesla-fsd\docs\harmoni-ekran-analizi\promptlar\12-ekran-karti.txt"
+
+# 00c3-plan.md'deki gruplama. Grup adi -> ekranlar. Derinlik icin sonuna
+# ':OZET' ekle (varsayilan TAM).
+$gruplar = [ordered]@{
+    '01-pricing-ailesi' = @('PG_ApplicationPricing', 'PG_ApplicationPricingTrio')
+    '02-personalinfo'   = @('PG_ApplicationEntryPersonalInfo')
+    '03-account-ikizi'  = @('PG_ApplicationAccount', 'PG_ApplicationAccountEdit')
+}
+
+if (-not (Test-Path $TPL)) { Write-Error "Sablon bulunamadi: $TPL"; return }
+New-Item -ItemType Directory -Force $OUT | Out-Null
+$sablon = Get-Content -LiteralPath $TPL -Raw -Encoding UTF8
+$tasks  = @(Import-Csv "$O\cct-tasks.csv")
+
+# Sablondan GIRDI bolumunden oncesini al (P0 + varsa aciklama)
+$kesim = $sablon.IndexOf("# GİRDİ")
+if ($kesim -lt 0) { Write-Error "Sablonda '# GİRDİ' bulunamadi"; return }
+$bas = $sablon.Substring(0, $kesim)
+# GOREV ve sonrasini al
+$gorevIx = $sablon.IndexOf("# GÖREV")
+$son = $sablon.Substring($gorevIx)
+
+foreach ($ad in $gruplar.Keys) {
+    $ekranlar = @($gruplar[$ad] | ForEach-Object { ($_ -split ':')[0] })
+    $derinlik = 'TAM'
+    if ($gruplar[$ad] -join ',' -match ':OZET') { $derinlik = 'OZET' }
+
+    $girdi = New-Object System.Collections.ArrayList
+    [void]$girdi.Add("# GİRDİ")
+    foreach ($f in @('00a-envanter.md', '00b-akis.md', '00c3-plan.md')) { [void]$girdi.Add("#file:docs/entry-akis/$f") }
+    foreach ($f in @('22-lang-durumu.txt', '14-yetki.txt', '20-include.txt')) { [void]$girdi.Add("#file:docs/entry-akis/_tarama/$f") }
+    foreach ($e in $ekranlar) {
+        $kart = "docs/entry-akis/ekranlar/$e.hazir.md"
+        if (Test-Path $kart) { [void]$girdi.Add("#file:$kart") } else { [void]$girdi.Add("# KART YOK: $kart  (M4 calistir)") }
+    }
+
+    $kap = New-Object System.Collections.ArrayList
+    [void]$kap.Add("")
+    [void]$kap.Add("# BU TURUN KAPSAMI")
+    [void]$kap.Add("Grup     : $ad")
+    [void]$kap.Add("Ekranlar : " + ($ekranlar -join ', '))
+    [void]$kap.Add("Derinlik : $derinlik")
+    [void]$kap.Add("Dosyalar :")
+    $eksik = @()
+    foreach ($e in $ekranlar) {
+        foreach ($yol in @("$J\$e.java", "$W\$e\$e.html", "$W\$e\$e.js")) {
+            if (Test-Path $yol) { [void]$kap.Add("#file:" + ($yol -replace '\\', '/')) } else { $eksik += $yol }
+        }
+        foreach ($t in @($tasks | Where-Object { $_.Page -eq $e })) {
+            $c = "src/main/webapp/cct/" + $t.File
+            if (($kap -notcontains ("#file:" + $c))) { [void]$kap.Add("#file:$c") }
+        }
+    }
+    if ($eksik.Count -gt 0) {
+        [void]$kap.Add("")
+        [void]$kap.Add("# BULUNAMAYAN DOSYALAR (kontrol et):")
+        foreach ($x in $eksik) { [void]$kap.Add("#   $x") }
+    }
+    [void]$kap.Add("")
+    [void]$kap.Add("NOT: " + (($ekranlar | ForEach-Object { $_ + 'Super.java' }) -join ', ') + " ÜRETİLMİŞTİR.")
+    [void]$kap.Add("Yalnızca alan/widget sözleşmesi ve included page için aç; iş mantığı arama.")
+    [void]$kap.Add("")
+
+    $metin = $bas.TrimEnd() + "`r`n`r`n" + (($girdi + $kap) -join "`r`n") + "`r`n" + $son.Trim() + "`r`n"
+    Set-Content (Join-Path $OUT "$ad.txt") -Value $metin -Encoding UTF8
+    "{0,-24} {1} ekran, {2} satir" -f $ad, $ekranlar.Count, @($metin -split "`r`n").Count
+}
+"--- uretildi: " + $OUT
+````
+
+Çıktı: `docs/entry-akis/promptlar-12/<grup>.txt`. Her biri tek parça —
+aç, `Ctrl+A`, `Ctrl+C`, yeni Copilot chat'e yapıştır.
+
+`BULUNAMAYAN DOSYALAR` bölümü çıkarsa ekran adı yanlış yazılmış demektir;
+`$gruplar`'ı düzelt ve tekrar çalıştır.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu
