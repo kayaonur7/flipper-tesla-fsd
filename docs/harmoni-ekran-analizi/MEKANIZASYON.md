@@ -827,7 +827,11 @@ turuna not olarak taşınır.
 > 1. **Değişken adları büyük/küçük harf duyarsız** — `$j` ile `$J` aynı
 >    değişkendir. Bu blokta sayaç önce `$j` idi ve `$J` kök yolunu eziyordu;
 >    `$ix` oldu. Tek harfli sayaçları köklerle (`$W`, `$J`, `$O`) çakıştırma.
-> 2. **`[xml]$x = ...` değişkeni oturum boyunca TİP KISITLI yapar.** M0 CCT'yi
+> 2. **Satır başındaki `else` ayrı komut sanılır.** Blok içindeyken sorun yok,
+>    ama en dış seviyede `if {...}` kapandıktan sonra yeni satırda `else`
+>    yazarsan "The term 'else' is not recognized" hatası alırsın. `} else {`
+>    diye aynı satırda tut ya da `else`'i tamamen kaldır.
+> 3. **`[xml]$x = ...` değişkeni oturum boyunca TİP KISITLI yapar.** M0 CCT'yi
 >    böyle parse ediyordu; sonraki bloklarda `foreach ($x in ...)` yazınca
 >    "Cannot convert value ... to type System.Xml.XmlDocument" hatası
 >    veriyordu. M0 artık `$xdoc` kullanıyor. Tip kısıtı `Remove-Variable x`
@@ -1442,9 +1446,10 @@ Atlanan bölümler başka turlarda üretiliyor; onlar hakkında not düşme.
 } else { "13-konsolidasyon.txt bulunamadi, atlandi: $TPL13" }
 
 # --- Adim 14 (dogrulama) ve Adim 16 (iyilestirme) promptlari ---
-$konsDosyalar = @()
-if ($tumEkran.Count -lt 14) { $konsDosyalar = @('90-konsolidasyon.md') }
-else { $konsDosyalar = @('90a-akis-state-validasyon.md', '90b-yetki-sozlesme-servis.md', '90c-tekrar-i18n-kapsam.md') }
+# NOT: `else` satir basinda olursa yapistirirken ayri komut sanilir ve
+# "The term 'else' is not recognized" hatasi verir. Tek satirda tutuluyor.
+$konsDosyalar = @('90-konsolidasyon.md')
+if ($tumEkran.Count -ge 14) { $konsDosyalar = @('90a-akis-state-validasyon.md', '90b-yetki-sozlesme-servis.md', '90c-tekrar-i18n-kapsam.md') }
 
 foreach ($ad2 in @('10-dogrulama', '16-iyilestirme')) {
     $t2 = $TPL -replace '12-ekran-karti\.txt$', ($ad2 + '.txt')
