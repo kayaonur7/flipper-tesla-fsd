@@ -1377,12 +1377,10 @@ if (Test-Path $TPL13) {
     $gi = New-Object System.Collections.ArrayList
     [void]$gi.Add("# GİRDİ")
     foreach ($f in @('00b-akis.md', '00c1-state.md', '00c2-servis-dto.md', '00c3-plan.md')) { [void]$gi.Add("#file:docs/entry-akis/$f") }
-    # Kartlarin tamamini vermek konsolidasyonu zaman asimina ugratiyor.
-    # M11'in urettigi ozet dosyalari kullanilir; parca basina biri.
-    $ozetler = @{ '90a-akis-state-validasyon' = '27a-ozet-akis'
-                  '90b-yetki-sozlesme-servis' = '27b-ozet-sozlesme'
-                  '90c-tekrar-i18n-kapsam'    = '27c-ozet-tekrar'
-                  '90-konsolidasyon'          = '27a-ozet-akis' }
+    foreach ($e in $tumEkran) {
+        $kart = "docs/entry-akis/ekranlar/$e.hazir.md"
+        if (Test-Path $kart) { [void]$gi.Add("#file:$kart") }
+    }
     [void]$gi.Add("")
     [void]$gi.Add("# KAPSAM UYARISI")
     [void]$gi.Add("Bu KISMI bir konsolidasyondur. Ekran kartı üretilmiş olanlar:")
@@ -1428,12 +1426,6 @@ if (Test-Path $TPL13) {
     foreach ($pc in $parcalar) {
         $gi2 = New-Object System.Collections.ArrayList
         foreach ($x in $gi) { [void]$gi2.Add($x) }
-        $oz = $ozetler[$pc.Ad]
-        if ($oz) {
-            $ozYol = "docs/entry-akis/$oz.md"
-            if (Test-Path $ozYol) { [void]$gi2.Insert(1, "#file:$ozYol") }
-            else { [void]$gi2.Insert(1, "# OZET YOK: $ozYol  (M11 calistir)") }
-        }
         foreach ($x in $pc.Ek) { [void]$gi2.Insert(1, "#file:$x") }
         $ek = @"
 
@@ -1449,10 +1441,39 @@ Atlanan bölümler başka turlarda üretiliyor; onlar hakkında not düşme.
     }
 } else { "13-konsolidasyon.txt bulunamadi, atlandi: $TPL13" }
 
+# --- Adim 14 (dogrulama) ve Adim 16 (iyilestirme) promptlari ---
+$konsDosyalar = @()
+if ($tumEkran.Count -lt 14) { $konsDosyalar = @('90-konsolidasyon.md') }
+else { $konsDosyalar = @('90a-akis-state-validasyon.md', '90b-yetki-sozlesme-servis.md', '90c-tekrar-i18n-kapsam.md') }
+
+foreach ($ad2 in @('10-dogrulama', '16-iyilestirme')) {
+    $t2 = $TPL -replace '12-ekran-karti\.txt$', ($ad2 + '.txt')
+    if (-not (Test-Path $t2)) { "$ad2 sablonu yok, atlandi"; continue }
+    $x2 = Get-Content -LiteralPath $t2 -Raw -Encoding UTF8
+    $ki = $x2.IndexOf("# GİRDİ"); $gi3 = $x2.IndexOf("# GÖREV")
+    if ($ki -lt 0 -or $gi3 -lt 0) { "$ad2 sablonunda GIRDI/GOREV yok, atlandi"; continue }
+
+    $lst = New-Object System.Collections.ArrayList
+    [void]$lst.Add("# GİRDİ")
+    if ($ad2 -eq '10-dogrulama') {
+        foreach ($f in $konsDosyalar) { [void]$lst.Add("#file:docs/entry-akis/$f") }
+    } else {
+        foreach ($f in @('00b-akis.md', '00c1-state.md', '00c2-servis-dto.md', '00c3-plan.md')) { [void]$lst.Add("#file:docs/entry-akis/$f") }
+        foreach ($f in $konsDosyalar) { [void]$lst.Add("#file:docs/entry-akis/$f") }
+    }
+    [void]$lst.Add("")
+    $çıktı = $modelNot + $x2.Substring(0, $ki).TrimEnd() + "`r`n`r`n" + ($lst -join "`r`n") + "`r`n" + $x2.Substring($gi3).Trim() + "`r`n"
+    Set-Content (Join-Path $OUT ($ad2 + ".txt")) -Value $çıktı -Encoding UTF8
+    "{0,-28} {1} konsolidasyon dosyasi" -f $ad2, $konsDosyalar.Count
+}
+
 "--- uretildi: " + $OUT
 ````
 
-Çıktı: `docs/entry-akis/promptlar-12/<grup>.txt`, artı
+Çıktı: `docs/entry-akis/promptlar-12/` altına grup promptları, konsolidasyon
+promptları, artı **Adım 14 (`10-dogrulama.txt`)** ve **Adım 16
+(`16-iyilestirme.txt`)** — ikisinin de girdi listesi kapsama göre doğru
+konsolidasyon dosyalarına bağlanmış hâlde. Ayrıca
 `promptlar-12/90-konsolidasyon.txt` — Adım 13'ün promptu, `$gruplar`'daki tüm
 kartları girdi alır ve **kapsam uyarısı** içerir: kartı olmayan ekranlar için
 çıkarım yapılmasını yasaklar. Kısmi koşularda bu şart, yoksa model kapsamadığı
@@ -1468,9 +1489,6 @@ zaman aşımı alındı. Script kapsama göre üretir:
 
 - **Kısmi kapsam (<14 ekran)** → tek dosya `90-konsolidasyon.txt`, 5 bölüm.
   Kalan bölümler tam kapsam ister, kısmi koşuda yanıltıcı olur.
-Her konsolidasyon promptu 14 kart yerine **M11'in ürettiği tek özet dosyasını**
-okur; kartların tamamı Sonnet'te bile sığmıyordu.
-
 - **Tam kapsam (14 ekran)** → üç dosya, sırayla çalıştırılır:
   `90a-akis-state-validasyon` (bölüm 1-3) →
   `90b-yetki-sozlesme-servis` (4-7) →
@@ -1479,11 +1497,17 @@ okur; kartların tamamı Sonnet'te bile sığmıyordu.
 
 ---
 
-## M11 — Kart özetleri
+## M11 — Kart özetleri (isteğe bağlı yedek)
 
-14 kartın tamamı konsolidasyona sığmıyor (Sonnet'te bile zaman aşımı). Kartların
-çoğu da her turda gerekli değil: 90a'ya catch blokları tablosu lazım değil,
-90b'ye dil durumu lazım değil.
+> **Gerekmedi.** Konsolidasyonun üç parçası 14 kartın tamamıyla, birkaç
+> denemede zaman aşımı almadan bitti. Bu blok yalnızca ısrarlı zaman aşımı
+> alırsan devreye girer: kartlardan yalnızca o turda gereken bölümleri çekip
+> girdiyi birkaç bin satırdan birkaç yüze indirir. Kullanacaksan üretilen
+> özet dosyasını konsolidasyon promptunun `# GİRDİ` bölümüne kartların
+> yerine elle yaz.
+
+Kartların çoğu her turda gerekli değil: 90a'ya catch blokları tablosu lazım
+değil, 90b'ye dil durumu lazım değil.
 
 Bu blok her kartdan **yalnızca ilgili bölümleri** çekip üç özet dosyası üretir.
 Konsolidasyon turları 14 kart yerine tek özet dosyası okur.
