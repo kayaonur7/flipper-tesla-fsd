@@ -1289,7 +1289,10 @@ grup listesini alır ve her grup için **kopyala-yapıştır hazır** bir prompt
 dosyası yazar: P0 + görev metni + doldurulmuş `# GİRDİ` ve `# BU TURUN KAPSAMI`.
 Hangi ekranın hangi CCT'de olduğunu `cct-tasks.csv`'den bulur.
 
-Yalnızca `$gruplar` ve `$TPL` satırlarını düzenle.
+Yalnızca `$gruplar` ve `$TPL` satırlarını düzenle. Aşağıdaki `$gruplar`
+entry akışının 14 ekranının **tamamını** kapsar (5+4+1+1+3); `00c3-plan.md`
+farklı gruplama önerdiyse onu kullan. Sonuna `:OZET` eklenen ekranlar özet
+derinlikte işlenir ve tek turda birden fazla ekran barındırabilir.
 
 ````powershell
 $W   = "src\main\webapp\page\acq\application\entry"
@@ -1305,6 +1308,10 @@ $gruplar = [ordered]@{
     '01-pricing-ailesi' = @('PG_ApplicationPricing', 'PG_ApplicationPricingTrio')
     '02-personalinfo'   = @('PG_ApplicationEntryPersonalInfo')
     '03-account-ikizi'  = @('PG_ApplicationAccount', 'PG_ApplicationAccountEdit')
+    '04-yetim-popuplar' = @('PG_AccountWalletPopup:OZET', 'PG_AddNote:OZET', 'PG_LoyaltyProgramRatePopup:OZET', 'PG_TagOperation:OZET')
+    '05-terminalinfo'   = @('PG_TerminalInfo')
+    '06-ekbilgi'        = @('PG_AdditionalInformation')
+    '07-tag-guvenlik'   = @('PG_TagInquiry:OZET', 'PG_MerchantSecurityCheck:OZET', 'PG_MerchantPoint:OZET')
 }
 
 if (-not (Test-Path $TPL)) { Write-Error "Sablon bulunamadi: $TPL"; return }
