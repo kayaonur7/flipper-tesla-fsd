@@ -18,7 +18,7 @@ ekranlar/*.hazir.md    REFERANS       ekrana dokunacak kişi açar
 | Kim / ne zaman | Ne okur |
 |---|---|
 | **Karar verecek olan** (lead, PO) — "ne yapalım?" | `99-iyilestirme.md`. Tek dosya. Bulgular etki × efor sıralı, quick win'ler ayrı, hangi testlerin önce yazılacağı yazılı |
-| **Akışı öğrenecek olan** (yeni geliştirici) | `00b-akis.md` (sözlü anlatım) + `00b-akis-otomatik.md` (Mermaid grafiği). Yarım saatte akışı kavrar |
+| **Akışı öğrenecek olan** (yeni geliştirici) | `REHBER.md` — Adım 17'nin ürettiği onboarding dokümanı. Analiz çıktıları problem bulmaya göre yazıldı, bu ise anlatım. Teknik akış için `00b-akis-otomatik.md` grafiği yanında |
 | **Bir ekrana dokunacak olan** | `ekranlar/<PG_X>.hazir.md`. O ekranın dosya ayak izi, CCT künyesi, olayları, servisleri, validasyonları, catch blokları, dil durumu — hepsi tek yerde |
 | **Değişikliğin etkisini ölçecek olan** | `00c1-state.md` (hangi alan hangi ekranlar arası taşınıyor) + `90b` (servis envanteri, kapsam dışı bağımlılıklar) |
 | **Test yazacak olan** | `99-iyilestirme.md`'nin "önce yazılması gereken karakterizasyon testleri" bölümü + `90a`'daki uçtan uca senaryolar |
@@ -58,6 +58,14 @@ katmanını yeniden üretmek yarım saat; asıl emek yorum katmanında.
 için `RUNBOOK.md`'deki kökleri ve `MEKANIZASYON.md`'deki `$gruplar`'ı
 değiştirmen yeterli. Framework konvansiyonları (`00a`) zaten türetilmiş
 durumda ve tekrar kullanılabilir — en pahalı adım oydu.
+
+## İş katmanı eksikliği
+
+Analizin tamamı koddan türetildi ve kod *niçin* sorusunu cevaplamıyor. Bu yüzden
+`REHBER.md`'de iş gerekçesi gerektiren her yer `[İŞ BİRİMİNE SORULACAK]` diye
+işaretlenir ve Bölüm 9'da toplanır. O listeyi iş birimiyle veya kıdemli bir
+geliştiriciyle doldurmadan rehber yeni gelene verilmemeli — yarısı teknik
+doğru, iş tarafı boş bir doküman yanıltıcıdır.
 
 ## Kalan açık sorular
 

@@ -25,6 +25,7 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 | `12-ekran-karti.txt` | Ekran kartı tamamlama | Sonnet | `ekranlar/*.hazir.md` |
 | `13-konsolidasyon.txt` | Konsolidasyon | Sonnet | `90-konsolidasyon.md` |
 | `16-iyilestirme.txt` | İyileştirme planı | Sonnet | `99-iyilestirme.md` |
+| `17-rehber.txt` | Onboarding rehberi — ekibe yeni gelen için anlatım | Sonnet | `REHBER.md` |
 
 ## Elle doldurman gerekenler
 

@@ -150,6 +150,7 @@ Buna karşılık yoruma alınmış yönlendirme sayısı 7 — sanılandan fazla
 [ ] 14 [CP] Doğrulama
 [ ] 15 [--] Elle spot-check
 [ ] 16 [CP] İyileştirme planı                → 99-iyilestirme.md
+[ ] 17 [CP] Onboarding rehberi              → REHBER.md
 ```
 
 ---
@@ -1065,6 +1066,92 @@ Adım 10'un aynısı, girdi: `#file:docs/entry-akis/90-konsolidasyon.md`
 **Validasyon Tutarlılık Matrisi**'nden 3 satır seç, kod referanslarını aç.
 En sık hata var olmayan bir validasyonun raporlanması — bu yanlış Adım 16'ya
 taşınırsa tüm plan çürük temele oturur.
+
+---
+
+## [CP] Adım 17 — Onboarding rehberi
+
+Yeni chat, **Sonnet**. Analiz çıktıları problem bulmaya göre yazıldı; bu adım
+onları **anlatıma** çevirir. Ekibe yeni katılan birinin okuyup akışı kavraması
+için.
+
+Kritik nokta: iş gerekçesi kodda yok. Bu tur onu uydurmayacak, boşluğu
+işaretleyecek.
+
+```
+# GİRDİ
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/00b-akis-otomatik.md
+#file:docs/entry-akis/00c1-state.md
+#file:docs/entry-akis/00c2-servis-dto.md
+#file:docs/entry-akis/90a-akis-state-validasyon.md
+#file:docs/entry-akis/90b-yetki-sozlesme-servis.md
+
+# GÖREV
+Bu akışı hiç bilmeyen, ekibe yeni katılmış bir geliştiriciye anlatan bir rehber
+yaz. Okuyan kişi yarım saat sonra akışı kavramış, koda güvenle bakabilir olmalı.
+
+Anlatım dili kullan, bulgu dili değil. "X tutarsız" deme; "X şöyle çalışıyor,
+şurada farklılaşıyor" de.
+
+# İŞ GEREKÇESİ KURALI
+Kod NE yaptığını söyler, NİÇİN yaptığını söylemez. İş gerekçesini UYDURMA.
+Koddan çıkaramadığın her iş kuralı için satırın sonuna:
+    [İŞ BİRİMİNE SORULACAK]
+yaz ve o maddeyi Bölüm 9'daki listeye de ekle. Tahmini iş gerekçesi yazmak
+bu dokümanı zararlı hâle getirir — yeni gelen onu doğru sanır.
+
+# ÇIKTI — docs/entry-akis/REHBER.md
+
+## 1. Bu Akış Ne İşe Yarar
+Koddan çıkarabildiğin kadarıyla: hangi iş süreci, kim kullanıyor, sonunda ne
+oluyor. Çıkaramadığın kısım [İŞ BİRİMİNE SORULACAK].
+
+## 2. Kavramlar
+Bu akışı okumak için bilinmesi gereken terimler: üye işyeri, POS, MCC, terminal,
+komisyon/pricing, trio, ÖKC vb. Her biri için kodda nasıl temsil edildiğini de
+yaz (hangi alan, hangi DTO).
+
+## 3. Ekran Ekran Yolculuk
+Grafikteki sıraya göre, her ekran için:
+- Kullanıcı burada ne yapıyor (koddan: hangi alanlar, hangi butonlar)
+- Hangi veri toplanıyor, nereye yazılıyor
+- Buradan nereye gidilebilir, hangi koşulla
+- Bu ekranın kendine özgü tuhaflığı varsa
+
+## 4. Karar Noktaları
+Akışın dallandığı yerler: koşul ne, hangi dala hangi durumda gidiliyor.
+İş gerekçesi bilinmiyorsa işaretle.
+
+## 5. Verinin Yolculuğu
+Başvuru boyunca biriken veri: hangi adımda ne ekleniyor, sonunda nereye
+gönderiliyor. 00c1'deki paylaşılan alanları anlatıma çevir.
+
+## 6. Dış Bağımlılıklar
+Hangi servisler, ne için çağrılıyor. Teknik isim + ne işe yaradığı.
+
+## 7. Yeni Gelenin Bilmesi Gerekenler
+Bu kod tabanına özgü, insanın kendiliğinden anlamayacağı şeyler:
+- `*Super.java` üretilmiş, elle değiştirilmez
+- Akış `.cct` dosyalarında tanımlı, koda bakarak bulunamaz
+- `ControllerEvent` handler değil, sonuç token'ı
+- Ekran = 4 ağaçta 10 dosya
+- Yoruma alınmış yönlendirme blokları var, canlı kod sanma
+- Ölü/yetim sınıflar var
+
+## 8. İlk Görevini Alırken
+"Şu ekrana yeni bir alan ekle" denirse hangi dosyalara dokunması gerekir,
+hangi sırayla, neyi unutmamalı (lang key, CCT, validasyon katmanları).
+
+## 9. İŞ BİRİMİNE SORULACAKLAR
+Metinde [İŞ BİRİMİNE SORULACAK] işaretlediğin her maddenin listesi.
+Bu bölüm doldurulmadan rehber tamam sayılmaz.
+
+# KURAL
+İyileştirme önerisi yazma — bu doküman "nasıl çalışıyor"u anlatır, "nesi
+bozuk"u değil. Bozukluklar 99-iyilestirme.md'de.
+Bilmediğin iş gerekçesini uydurma.
+```
 
 ---
 

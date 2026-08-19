@@ -1,0 +1,167 @@
+# ÇALIŞTIRMA: Copilot agent mode, model = Claude Sonnet.
+# Opus bu kurulumda zaman aşımına uğruyor — Opus SEÇME.
+
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       rolü DOĞRULANMADI
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties'in ROLÜ DOĞRULANMADI. Adından yetki dosyası sanılabilir
+   ama 15 dosyanın 14'ü boş, dolu olan tek dosya (PG_TerminalInfo) validasyon
+   HATA MESAJLARI içeriyor:
+     INVALID_FINANCIAL_ID_ERROR = Girilen Mali ID ... uygun degil.
+   Bu dosyaya "yetki tanımı" deme. Ne olduğunu framework'ten veya başka
+   akışlardaki örneklerden türet; türetemezsen "BİLİNMİYOR" yaz.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- İLK İŞ — GİRDİ KONTROLÜ: Göreve başlamadan önce # GİRDİ bölümündeki her
+  dosyayı aç ve tek satırda bildir:
+      <dosya adı> : <satır sayısı> satır — <ilk başlığı>
+  Açamadığın veya bulamadığın dosya varsa DUR, "GİRDİ YÜKLENMEDİ: <dosya>"
+  yaz ve göreve BAŞLAMA. Eksik girdiyle üretilen çıktı işe yaramaz.
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Bir girdi dosyasının hatalı/eksik/yanlış olduğunu İDDİA EDECEKSEN önce
+  ondan ALINTI yap: ilk 3 satırı ve satır sayısını yaz. Alıntı yapamıyorsan
+  iddiayı yazma ve görevi dosyanın gerçek içeriğiyle yap. Bir dosyanın
+  bozuk olduğunu varsayıp görevi atlamak YASAK.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+# GİRDİ
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/00b-akis-otomatik.md
+#file:docs/entry-akis/00c1-state.md
+#file:docs/entry-akis/00c2-servis-dto.md
+#file:docs/entry-akis/90a-akis-state-validasyon.md
+#file:docs/entry-akis/90b-yetki-sozlesme-servis.md
+
+# GÖREV
+Bu akışı hiç bilmeyen, ekibe yeni katılmış bir geliştiriciye anlatan bir rehber
+yaz. Okuyan kişi yarım saat sonra akışı kavramış, koda güvenle bakabilir olmalı.
+
+Anlatım dili kullan, bulgu dili değil. "X tutarsız" deme; "X şöyle çalışıyor,
+şurada farklılaşıyor" de.
+
+# İŞ GEREKÇESİ KURALI
+Kod NE yaptığını söyler, NİÇİN yaptığını söylemez. İş gerekçesini UYDURMA.
+Koddan çıkaramadığın her iş kuralı için satırın sonuna:
+    [İŞ BİRİMİNE SORULACAK]
+yaz ve o maddeyi Bölüm 9'daki listeye de ekle. Tahmini iş gerekçesi yazmak
+bu dokümanı zararlı hâle getirir — yeni gelen onu doğru sanır.
+
+# ÇIKTI — docs/entry-akis/REHBER.md
+
+## 1. Bu Akış Ne İşe Yarar
+Koddan çıkarabildiğin kadarıyla: hangi iş süreci, kim kullanıyor, sonunda ne
+oluyor. Çıkaramadığın kısım [İŞ BİRİMİNE SORULACAK].
+
+## 2. Kavramlar
+Bu akışı okumak için bilinmesi gereken terimler: üye işyeri, POS, MCC, terminal,
+komisyon/pricing, trio, ÖKC vb. Her biri için kodda nasıl temsil edildiğini de
+yaz (hangi alan, hangi DTO).
+
+## 3. Ekran Ekran Yolculuk
+Grafikteki sıraya göre, her ekran için:
+- Kullanıcı burada ne yapıyor (koddan: hangi alanlar, hangi butonlar)
+- Hangi veri toplanıyor, nereye yazılıyor
+- Buradan nereye gidilebilir, hangi koşulla
+- Bu ekranın kendine özgü tuhaflığı varsa
+
+## 4. Karar Noktaları
+Akışın dallandığı yerler: koşul ne, hangi dala hangi durumda gidiliyor.
+İş gerekçesi bilinmiyorsa işaretle.
+
+## 5. Verinin Yolculuğu
+Başvuru boyunca biriken veri: hangi adımda ne ekleniyor, sonunda nereye
+gönderiliyor. 00c1'deki paylaşılan alanları anlatıma çevir.
+
+## 6. Dış Bağımlılıklar
+Hangi servisler, ne için çağrılıyor. Teknik isim + ne işe yaradığı.
+
+## 7. Yeni Gelenin Bilmesi Gerekenler
+Bu kod tabanına özgü, insanın kendiliğinden anlamayacağı şeyler:
+- `*Super.java` üretilmiş, elle değiştirilmez
+- Akış `.cct` dosyalarında tanımlı, koda bakarak bulunamaz
+- `ControllerEvent` handler değil, sonuç token'ı
+- Ekran = 4 ağaçta 10 dosya
+- Yoruma alınmış yönlendirme blokları var, canlı kod sanma
+- Ölü/yetim sınıflar var
+
+## 8. İlk Görevini Alırken
+"Şu ekrana yeni bir alan ekle" denirse hangi dosyalara dokunması gerekir,
+hangi sırayla, neyi unutmamalı (lang key, CCT, validasyon katmanları).
+
+## 9. İŞ BİRİMİNE SORULACAKLAR
+Metinde [İŞ BİRİMİNE SORULACAK] işaretlediğin her maddenin listesi.
+Bu bölüm doldurulmadan rehber tamam sayılmaz.
+
+# KURAL
+İyileştirme önerisi yazma — bu doküman "nasıl çalışıyor"u anlatır, "nesi
+bozuk"u değil. Bozukluklar 99-iyilestirme.md'de.
+Bilmediğin iş gerekçesini uydurma.
