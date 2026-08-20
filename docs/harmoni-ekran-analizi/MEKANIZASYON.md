@@ -1939,7 +1939,12 @@ foreach ($f in $devJava) {
     }
     $gercek[$f.BaseName] = $set
 }
-$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage')
+# CCT nitelik adlari ve framework taban siniflari servis DEGILDIR.
+# PageController="..." / ConvController="..." .cct icinde birer XML niteligi;
+# ...Controller ile bittikleri icin desen bunlari servis saniyordu.
+$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage',
+             'PageController','ConvController','TaskController',
+             'PageControllerParent','ConvControllerParent')
 $rxSvcAd = [regex]'\b(\w{4,}(?:Controller|Service|Intf))\b'
 
 # ---------- B + C. sorular ve kanit bosluklari ----------
@@ -2139,7 +2144,12 @@ foreach ($f in $devJava) {
 }
 
 # --- bayrakli adlar (M13 D bolumuyle ayni) ---
-$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage')
+# CCT nitelik adlari ve framework taban siniflari servis DEGILDIR.
+# PageController="..." / ConvController="..." .cct icinde birer XML niteligi;
+# ...Controller ile bittikleri icin desen bunlari servis saniyordu.
+$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage',
+             'PageController','ConvController','TaskController',
+             'PageControllerParent','ConvControllerParent')
 $rxSvcAd = [regex]'\b(\w{4,}(?:Controller|Service|Intf))\b'
 $bayrak = New-Object System.Collections.ArrayList
 foreach ($e in ($ekranMetin.Keys | Sort-Object)) {
@@ -2254,6 +2264,67 @@ Her başlığın altındaki cümleyi oku. Servis o ekranın *çağırdığı* bi
 olarak anlatılıyorsa ve M14 bağı kuramadıysa cümle yanlış — düzelt veya sil.
 Bağlam farklıysa (ör. "bu veriyi X servisi üretir, biz sonucunu okuruz")
 cümle doğrudur, bir şey yapma.
+
+> **İlk koşuda öğrenilen:** bayrakların çoğu `PageController` ve
+> `ConvController` çıktı. Bunlar servis değil, **CCT'nin XML nitelik adları**
+> (`PageController="com.ykb...."`). `...Controller` ile bittikleri için desene
+> takılıyorlardı; artık `$stopSvc` listesinde. Kalan bayraklar gerçek
+> iddialardır.
+
+### M14c — bir adın bir ekranla ilişkisini kesinleştir
+
+Elde birkaç gerçek iddia kaldığında bunu çalıştır. Ekranın **kendi dosyası,
+`Super`'i, html/js'i ve dahil ettiği sayfaların** hepsinde adı arar — M14'ün
+yalnızca servis edinme desenine baktığı yerde bu ham metin araması yapar.
+
+Üstteki iki satırı düzenle, gerisine dokunma.
+
+````powershell
+$ekran = "PG_AccountWalletPopup"
+$ad    = "IAccountChannelService"
+
+$W   = "src\main\webapp\page\acq\application\entry"
+$WP  = "src\main\webapp\page"
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$SRC = "src\main\java"
+
+$hedefler = New-Object System.Collections.ArrayList
+foreach ($p in @("$J\$ekran.java", "$J\${ekran}Super.java", "$W\$ekran\$ekran.html", "$W\$ekran\$ekran.js")) {
+    if (Test-Path $p) { [void]$hedefler.Add((Get-Item $p)) }
+}
+"ekran dosyasi : " + $hedefler.Count
+
+# html'deki IncludedPage'leri bul, onlarin java/html'ini de kapsama al
+$incler = @()
+foreach ($f in @($hedefler | Where-Object { $_.Extension -eq '.html' })) {
+    foreach ($m in ([regex]'data-page-name\s*=\s*"([^"]+)"').Matches((Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8))) { $incler += $m.Groups[1].Value }
+}
+$incler = @($incler | Sort-Object -Unique)
+"include sayfa : " + $incler.Count
+foreach ($i in $incler) {
+    $adi = @($i -split '/')[-1]
+    foreach ($c in @(Get-ChildItem $SRC -Recurse -File -Filter "$adi.java")) { [void]$hedefler.Add($c) }
+    foreach ($c in @(Get-ChildItem $WP -Recurse -File -Filter "$adi.html")) { [void]$hedefler.Add($c) }
+}
+"toplam dosya  : " + $hedefler.Count
+
+$bulundu = 0
+foreach ($f in $hedefler) {
+    $no = 0
+    foreach ($l in (Get-Content -LiteralPath $f.FullName)) {
+        $no++
+        if ($l -cmatch ('\b' + [regex]::Escape($ad) + '\b')) { $bulundu++; "  " + $f.Name + ":" + $no + "  " + $l.Trim() }
+    }
+}
+""
+"SONUC: '" + $ad + "' -> " + $ekran + " kapsaminda " + $bulundu + " gecis"
+if ($bulundu -eq 0) { "  Ekranin hicbir dosyasinda yok. Ekteki cumle YANLIS - duzelt veya sil." }
+if ($bulundu -gt 0) { "  Kapsamda geciyor. Cumle dogru; M8'in edinme deseni bu cagri bicimini yakalamiyor." }
+````
+
+`0 geçiş` çıkarsa ekteki cümle yanlış. Sıfırdan büyükse cümle doğru, sorun
+M8'in edinme deseninde — hangi çağrı biçimini kaçırdığını çıktıdaki satırdan
+görüp `$rxAcq`'e ekleyebilirsin.
 
 ---
 
