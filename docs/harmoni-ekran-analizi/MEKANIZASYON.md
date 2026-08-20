@@ -2207,6 +2207,54 @@ Set-Content "$O\28-servis-karar.txt" -Value ($out -join "`r`n") -Encoding UTF8
 güvenilir. Sıfırdan büyükse `28-servis-karar.txt`'deki o satırları aç, ekteki
 cümleyi sil, `REHBER-00-INDEX.md`'yi M13 ile yeniden üret.
 
+### M14b — "başka dosyada" satırlarının cümlesini göster
+
+`GERCEK - baska dosyada` çıkanlar sınıf olarak var ama o ekranla bağı
+kurulamadı. Karar vermek için cümleyi görmek gerekiyor; yedi ekte elle
+aramak yerine bu blok hepsini önüne getirir.
+
+````powershell
+$EK = "docs\entry-akis"
+$O  = "docs\entry-akis\_tarama"
+
+$ciftler = New-Object System.Collections.ArrayList
+foreach ($l in (Get-Content -LiteralPath "$O\28-servis-karar.txt" -Encoding UTF8)) {
+    if ($l -notmatch '^\|') { continue }
+    if ($l -notmatch 'baska dosyada') { continue }
+    $p = @((($l.Trim() -replace '^\|', '') -replace '\|$', '') -split '\|' | ForEach-Object { $_.Trim() })
+    if ($p.Count -lt 2) { continue }
+    [void]$ciftler.Add([PSCustomObject]@{ Ekran = $p[0]; Ad = $p[1] })
+}
+"incelenecek : " + $ciftler.Count
+
+$out = New-Object System.Collections.ArrayList
+[void]$out.Add("# 'Baska dosyada' satirlari - ekteki cumleler")
+[void]$out.Add("")
+[void]$out.Add("Her satir icin karar: cumle dogru mu, yoksa yanlis ekrana mi atfedilmis?")
+[void]$out.Add("")
+foreach ($c in $ciftler) {
+    [void]$out.Add("")
+    [void]$out.Add("## " + $c.Ekran + " -- " + $c.Ad)
+    [void]$out.Add("")
+    foreach ($f in @(Get-ChildItem $EK -File -Filter "REHBER-EK-*.md" | Sort-Object Name)) {
+        $no = 0; $cur = ''
+        foreach ($l in (Get-Content -LiteralPath $f.FullName -Encoding UTF8)) {
+            $no++
+            if ($l -cmatch '^##\s+(PG_\w+)') { $cur = $Matches[1]; continue }
+            if ($cur -ne $c.Ekran) { continue }
+            if ($l -cmatch ('\b' + [regex]::Escape($c.Ad) + '\b')) { [void]$out.Add("  " + $f.Name + ":" + $no + "  " + $l.Trim()) }
+        }
+    }
+}
+Set-Content "$O\29-baska-dosyada.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"29-baska-dosyada : " + $out.Count + " satir"
+````
+
+Her başlığın altındaki cümleyi oku. Servis o ekranın *çağırdığı* bir şey
+olarak anlatılıyorsa ve M14 bağı kuramadıysa cümle yanlış — düzelt veya sil.
+Bağlam farklıysa (ör. "bu veriyi X servisi üretir, biz sonucunu okuruz")
+cümle doğrudur, bir şey yapma.
+
 ---
 
 ## Copilot tarafı nasıl değişiyor
