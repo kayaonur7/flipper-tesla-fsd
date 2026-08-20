@@ -1239,6 +1239,24 @@ rehber katmanı henüz tutarlı değil.
 
 ---
 
+## M14 — Şüpheli servis adlarını karara bağla
+
+**`supheli servis adi` sıfırdan büyükse çalıştır.** M13 bayrak kaldırıyor ama
+karar vermiyor; M14 her adı tüm repoda arayıp dört sonuçtan birine bağlar:
+ekranın kendi dosyasında, `Super`'de, başka bir dosyada, ya da **hiçbir yerde**.
+
+Sonuncusu tek gerçek hata sınıfı: model anlatımı tamamlamak için var olmayan
+bir servis adı yazmış. Okuyan kişi bunu asla fark edemez — doğru görünür,
+doğru yerde durur, sadece yoktur. Ekten silinir.
+
+"Başka dosyada" çıkanlar da doğrulanmalı: sınıf gerçek ama o ekranla bağı
+kurulamadı, cümle yanlış ekrana atfedilmiş olabilir.
+
+Çıktı: `docs/entry-akis/_tarama/28-servis-karar.txt`. Düzeltmelerden sonra
+M13'ü yeniden koş, `REHBER-00-INDEX.md` güncellensin.
+
+---
+
 ## [CP] Adım 16 — İyileştirme planı
 
 Yeni chat. P0 + aşağısı.

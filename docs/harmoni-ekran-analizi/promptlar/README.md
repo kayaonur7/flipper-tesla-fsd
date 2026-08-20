@@ -68,6 +68,7 @@ PowerShell: Adım 0-6  →  M0, M1, M2, M3
 
 Anlatım katmanı (analizden sonra):
 17  →  M12 (diyagramlar)  →  18  →  19 × grup sayısı  →  M13 (dizin + denetim)
+                                              →  M14 (bayrak varsa)
 ```
 
 ## Yeniden üretme

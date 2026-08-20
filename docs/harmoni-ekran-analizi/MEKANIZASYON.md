@@ -2089,6 +2089,126 @@ cevapla değiştir.
 
 ---
 
+## M14 — Şüpheli servis adlarını karara bağla
+
+M13'ün D bölümü "MATRISTE YOK" diyor ama kararı vermiyor. Bu blok her bayraklı
+adı **tüm repoda** arayıp dört sonuçtan birine bağlar:
+
+| Karar | Anlamı | Ne yapmalı |
+|---|---|---|
+| `GERCEK - ekran dosyasinda` | Ad ekranın kendi java'sında geçiyor, M8'in edinme deseni yakalayamamış | Bir şey yapma. İstersen M8'in desenini genişlet |
+| `GERCEK - Super'de` | Çağrı üretilmiş taban sınıftan geliyor | Bir şey yapma |
+| `GERCEK - baska dosyada` | Sınıf var ama bu ekranla bağı kurulamadı | **Ekte o cümleyi doğrula** — yanlış ekrana atfedilmiş olabilir |
+| `UYDURMA - repoda yok` | Bu isimde hiçbir şey yok | **Ekten sil.** Model anlatımı tamamlamak için uydurmuş |
+
+Sonuncusu tek gerçek hata sınıfı ve okuyan kişi asla fark edemez — doğru
+görünür, doğru yerde durur, sadece yoktur.
+
+````powershell
+$J   = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$SRC = "src\main\java"
+$WEB = "src\main\webapp"
+$EK  = "docs\entry-akis"
+$O   = "docs\entry-akis\_tarama"
+
+$ekler = @(Get-ChildItem $EK -File -Filter "REHBER-EK-*.md" | Sort-Object Name)
+"ek dosya : " + $ekler.Count
+
+function Get-Aktif14($path) { $res = New-Object System.Collections.ArrayList; $blok = $false; foreach ($l in (Get-Content -LiteralPath $path)) { $t = $l.Trim(); if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }; if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }; if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }; [void]$res.Add($l) }; return $res }
+
+# --- ekteki ekran metinleri ---
+$ekranMetin = @{}
+foreach ($f in $ekler) {
+    $cur = ''
+    foreach ($l in (Get-Content -LiteralPath $f.FullName -Encoding UTF8)) {
+        if ($l -cmatch '^##\s+(PG_\w+)') { $cur = $Matches[1]; if (-not $ekranMetin.ContainsKey($cur)) { $ekranMetin[$cur] = New-Object System.Collections.ArrayList }; continue }
+        if ($cur) { [void]$ekranMetin[$cur].Add($l) }
+    }
+}
+
+# --- gercek servis edinme (M8 yontemi) ---
+$devJava = @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })
+$rxAcq = @([regex]'RemoteUtility\.getServiceCloudVersion\s*\(\s*(\w+)\.class', [regex]'RemoteUtility\.get(?!ServiceCloudVersion)(\w+)\s*\(', [regex]'getRemote\s*\(\s*(\w+)\.class', [regex]'\bgetService\s*\(\s*(\w+)\.class')
+$gercek = @{}
+foreach ($f in $devJava) {
+    $set = New-Object System.Collections.ArrayList
+    foreach ($l in (Get-Aktif14 $f.FullName)) {
+        foreach ($rx in $rxAcq) { foreach ($m in $rx.Matches($l)) { $sv = $m.Groups[1].Value; if ($set -notcontains $sv) { [void]$set.Add($sv) } } }
+    }
+    $gercek[$f.BaseName] = $set
+}
+
+# --- bayrakli adlar (M13 D bolumuyle ayni) ---
+$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage')
+$rxSvcAd = [regex]'\b(\w{4,}(?:Controller|Service|Intf))\b'
+$bayrak = New-Object System.Collections.ArrayList
+foreach ($e in ($ekranMetin.Keys | Sort-Object)) {
+    $bilinen = @()
+    if ($gercek.ContainsKey($e)) { $bilinen = @($gercek[$e]) }
+    $gecen = @{}
+    foreach ($l in $ekranMetin[$e]) { foreach ($m in $rxSvcAd.Matches($l)) { $gecen[$m.Groups[1].Value] = $true } }
+    foreach ($ad in ($gecen.Keys | Sort-Object)) { if ($bilinen -notcontains $ad -and $stopSvc -notcontains $ad) { [void]$bayrak.Add([PSCustomObject]@{ Ekran = $e; Ad = $ad }) } }
+}
+"bayrakli satir : " + $bayrak.Count
+$adaylar = @($bayrak | ForEach-Object { $_.Ad } | Sort-Object -Unique)
+"tekil ad       : " + $adaylar.Count
+
+# --- repo genelinde ara ---
+$nerede = @{}; $sinifVar = @{}
+foreach ($ad in $adaylar) { $nerede[$ad] = New-Object System.Collections.ArrayList }
+if ($adaylar.Count -gt 0) {
+    $rxAday = [regex]('\b(' + (($adaylar | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')\b')
+    $hepsi = @(Get-ChildItem $SRC -Recurse -File -Filter *.java)
+    $hepsi += @(Get-ChildItem $WEB -Recurse -File | Where-Object { $_.Extension -eq '.js' -or $_.Extension -eq '.html' -or $_.Extension -eq '.cct' })
+    "taranan dosya  : " + $hepsi.Count
+    foreach ($f in $hepsi) {
+        if ($adaylar -contains $f.BaseName) { $sinifVar[$f.BaseName] = $f.Name }
+        $txt = Get-Content -LiteralPath $f.FullName -Raw
+        if (-not $txt) { continue }
+        foreach ($m in $rxAday.Matches($txt)) {
+            $ad = $m.Groups[1].Value
+            if ($nerede[$ad] -notcontains $f.Name -and @($nerede[$ad]).Count -lt 8) { [void]$nerede[$ad].Add($f.Name) }
+        }
+    }
+}
+
+# --- karar ---
+$out = New-Object System.Collections.ArrayList
+[void]$out.Add("# Supheli servis adlari - karar")
+[void]$out.Add("")
+[void]$out.Add("REHBER-EK-*.md dosyalarinda gecen ama 25-servis-matrisi'nde o ekran icin")
+[void]$out.Add("bulunmayan isimler. Her biri tum repoda arandi.")
+[void]$out.Add("")
+[void]$out.Add("| Ekran | Ad | Karar | Nerede geciyor |")
+[void]$out.Add("|---|---|---|---|")
+$uydurma = 0; $baskaYer = 0
+foreach ($b in ($bayrak | Sort-Object Ekran, Ad)) {
+    $ad = $b.Ad
+    $yer = @($nerede[$ad])
+    $karar = 'UYDURMA - repoda yok'
+    if ($yer -contains ($b.Ekran + '.java')) { $karar = 'GERCEK - ekran dosyasinda' }
+    if ($karar -like 'UYDURMA*' -and ($yer -contains ($b.Ekran + 'Super.java'))) { $karar = "GERCEK - Super'de" }
+    if ($karar -like 'UYDURMA*' -and $sinifVar.ContainsKey($ad)) { $karar = 'GERCEK - baska dosyada'; $baskaYer++ }
+    if ($karar -like 'UYDURMA*' -and $yer.Count -gt 0) { $karar = 'GERCEK - baska dosyada'; $baskaYer++ }
+    if ($karar -like 'UYDURMA*') { $uydurma++ }
+    [void]$out.Add("| " + $b.Ekran + " | " + $ad + " | " + $karar + " | " + (($yer | Select-Object -First 4) -join ', ') + " |")
+}
+[void]$out.Add("")
+[void]$out.Add("UYDURMA sayisi : " + $uydurma + "   <-- ekten SILINECEK")
+[void]$out.Add("Baska dosyada  : " + $baskaYer + "   <-- ekteki cumleyi dogrula, yanlis ekrana atfedilmis olabilir")
+
+Set-Content "$O\28-servis-karar.txt" -Value ($out -join "`r`n") -Encoding UTF8
+"UYDURMA        : " + $uydurma
+"baska dosyada  : " + $baskaYer
+"28-servis-karar: " + $out.Count + " satir"
+````
+
+`UYDURMA 0` çıkarsa Adım 19 hiçbir şey uydurmamış demektir — rehber katmanı
+güvenilir. Sıfırdan büyükse `28-servis-karar.txt`'deki o satırları aç, ekteki
+cümleyi sil, `REHBER-00-INDEX.md`'yi M13 ile yeniden üret.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu
