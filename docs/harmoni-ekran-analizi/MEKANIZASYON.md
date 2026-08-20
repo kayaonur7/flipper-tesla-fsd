@@ -25,6 +25,23 @@ sorusuna gider.
 terminali çok satırlı yapıştırmayı düzgün işler. Blok bittiğinde `>>` istemi
 kalırsa bir kez daha Enter'a bas.
 
+> **`>>` gitmiyorsa blok hiç çalışmamıştır.** Bir kez Enter'a basınca istem
+> kapanmıyor, hatta her satırın başında `>>` görünüyorsa PowerShell kapanmamış
+> bir yapı bekliyor: string, parantez veya süslü parantez. Hiçbir komut
+> çalışmadı, dosya da oluşmadı. **`Ctrl+C`** ile arabelleği boşalt.
+>
+> En sık sebep **backtick'le kaçırılmış tırnak**. PowerShell'de çift tırnak
+> içinde `` ` `` bir sonraki karakteri kaçırır, yani `` `" `` tırnağı kapatmaz —
+> string oracıkta sonsuza kadar açık kalır:
+>
+> ```powershell
+> "- `" + $x + "` "      # YANLIS - string hic kapanmiyor
+> "- ``" + $x + "`` "    # DOGRU  - cift backtick = tek literal backtick
+> ```
+>
+> Markdown'da backtick üretmek isterken bu tuzağa iki kez düşüldü (M4 ve M13).
+> Bloğu değiştirirsen aynısını yapmadığından emin ol.
+
 **2. VS Code "Run Selection"** — uzun bloklar (M4) için. Bloğu bir `.ps1`
 dosyasına kaydet, dosyayı aç, `Ctrl+A` → **`F8`**. Bu dosyayı *çalıştırmaz*,
 seçili metni terminale gönderir; execution policy dosya çalıştırmayı engeller,
@@ -2018,7 +2035,7 @@ if ($supheliSvc -eq 0) { [void]$ix.Add("Temiz — eklerde geçen her servis adı
 [void]$ix.Add("Model bu adımları çizemedi çünkü tarama dosyalarında karşılığını bulamadı.")
 [void]$ix.Add("Boşluk olduğu gibi duruyor — uydurulmadı. Önemliyse elle kapat.")
 [void]$ix.Add("")
-foreach ($k in $kanitYok) { [void]$ix.Add("- `" + $k.Dosya + ":" + $k.No + "` " + $k.Metin) }
+foreach ($k in $kanitYok) { [void]$ix.Add("- ``" + $k.Dosya + ":" + $k.No + "`` " + $k.Metin) }
 
 Set-Content (Join-Path $EK "REHBER-00-INDEX.md") -Value ($ix -join "`r`n") -Encoding UTF8
 
