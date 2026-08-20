@@ -1857,6 +1857,221 @@ koş — üretilen dosyayı elle düzeltme, bir sonraki koşuda kaybolur.
 
 ---
 
+## M13 — Rehber katmanını dizinle ve denetle
+
+Adım 19 grup başına bir tur çalışıyor; yedi ek **birbirinden habersiz** yedi
+turda yazıldı. Bu, kodda bulduğun kopyala-yapıştır ıraksamasının aynısını
+dokümanda üretebilir. Ayrıca sekiz dosyanın girişi yok ve
+`[İŞ BİRİMİNE SORULACAK]` maddeleri sekize dağılmış durumda.
+
+Blok dört şey yapar, dördü de deterministik:
+
+| Bölüm | Kontrol | Ne yakalar |
+|---|---|---|
+| A | Kapsam — 14 ekranın hangisi hangi ekte | Hiç anlatılmamış ekran, iki ekte birden anlatılan ekran |
+| B | `[İŞ BİRİMİNE SORULACAK]` toplama | İş birimine götürülecek tek liste, kaynak `dosya:satır` ile |
+| C | `KANIT YOK` sayımı | Modelin kanıtlayamadığı adımlar — kalite sinyali |
+| D | Servis çapraz kontrolü | Ekte geçen ama `25-servis-matrisi`'nde o ekran için olmayan servis adı |
+
+**D bölümü uydurma yakalayıcısıdır.** Adım 19'da en olası hata, anlatımı
+tamamlamak için var olmayan bir servis çağrısı yazmaktır. Blok bunu
+"MATRISTE YOK" diye işaretler — kesin hata demek değil (çağrı `Super`'den
+veya bir yardımcı sınıftan geliyor olabilir), **doğrulanacak** demektir.
+
+````powershell
+$W  = "src\main\webapp\page\acq\application\entry"
+$J  = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$EK = "docs\entry-akis"
+$O  = "docs\entry-akis\_tarama"
+
+$rehber = Join-Path $EK "REHBER.md"
+$ekler  = @(Get-ChildItem $EK -File -Filter "REHBER-EK-*.md" | Sort-Object Name)
+"REHBER.md    : " + (Test-Path $rehber)
+"ek dosya     : " + $ekler.Count
+
+# ---------- A. kapsam ----------
+$tumEkran = @(Get-ChildItem $W -Directory | ForEach-Object { $_.Name } | Sort-Object)
+$kapsam = @{}; $ekEkran = @{}; $ekranMetin = @{}
+foreach ($f in $ekler) {
+    $lst = New-Object System.Collections.ArrayList
+    $cur = ''
+    foreach ($l in (Get-Content -LiteralPath $f.FullName -Encoding UTF8)) {
+        if ($l -cmatch '^##\s+(PG_\w+)') {
+            $cur = $Matches[1]
+            if ($lst -notcontains $cur) { [void]$lst.Add($cur) }
+            if (-not $kapsam.ContainsKey($cur)) { $kapsam[$cur] = New-Object System.Collections.ArrayList }
+            if ($kapsam[$cur] -notcontains $f.Name) { [void]$kapsam[$cur].Add($f.Name) }
+            if (-not $ekranMetin.ContainsKey($cur)) { $ekranMetin[$cur] = New-Object System.Collections.ArrayList }
+            continue
+        }
+        if ($cur) { [void]$ekranMetin[$cur].Add($l) }
+    }
+    $ekEkran[$f.Name] = $lst
+}
+
+# ---------- D. gercek servis kullanimi (M8 ile ayni yontem) ----------
+function Get-Aktif13($path) { $res = New-Object System.Collections.ArrayList; $blok = $false; foreach ($l in (Get-Content -LiteralPath $path)) { $t = $l.Trim(); if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }; if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }; if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }; [void]$res.Add($l) }; return $res }
+
+$devJava = @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })
+$rxAcq = @([regex]'RemoteUtility\.getServiceCloudVersion\s*\(\s*(\w+)\.class', [regex]'RemoteUtility\.get(?!ServiceCloudVersion)(\w+)\s*\(', [regex]'getRemote\s*\(\s*(\w+)\.class', [regex]'\bgetService\s*\(\s*(\w+)\.class')
+$gercek = @{}
+foreach ($f in $devJava) {
+    $set = New-Object System.Collections.ArrayList
+    foreach ($l in (Get-Aktif13 $f.FullName)) {
+        foreach ($rx in $rxAcq) { foreach ($m in $rx.Matches($l)) { $sv = $m.Groups[1].Value; if ($set -notcontains $sv) { [void]$set.Add($sv) } } }
+    }
+    $gercek[$f.BaseName] = $set
+}
+$stopSvc = @('RemoteUtility','JABSSupport','HopeReportGenerator','IIncludedPage')
+$rxSvcAd = [regex]'\b(\w{4,}(?:Controller|Service|Intf))\b'
+
+# ---------- B + C. sorular ve kanit bosluklari ----------
+$sorular = New-Object System.Collections.ArrayList
+$kanitYok = New-Object System.Collections.ArrayList
+$tarananlar = @()
+if (Test-Path $rehber) { $tarananlar += (Get-Item $rehber) }
+$tarananlar += $ekler
+foreach ($f in $tarananlar) {
+    $no = 0
+    foreach ($l in (Get-Content -LiteralPath $f.FullName -Encoding UTF8)) {
+        $no++
+        if ($l -cmatch 'SORULACAK') { [void]$sorular.Add([PSCustomObject]@{ Dosya = $f.Name; No = $no; Metin = $l.Trim() }) }
+        if ($l -cmatch 'KANIT YOK') { [void]$kanitYok.Add([PSCustomObject]@{ Dosya = $f.Name; No = $no; Metin = $l.Trim() }) }
+    }
+}
+
+# ---------- INDEX ----------
+$ix = New-Object System.Collections.ArrayList
+[void]$ix.Add("# Rehber — Okuma Sırası")
+[void]$ix.Add("")
+[void]$ix.Add("M13 üretti. Ekler değişince yeniden koş.")
+[void]$ix.Add("")
+[void]$ix.Add("## Nereden başlanır")
+[void]$ix.Add("")
+[void]$ix.Add("1. **REHBER.md** — akışın tamamı, diyagramlar, uçtan uca senaryolar.")
+[void]$ix.Add("   Yarım saat. Yeni gelen buradan başlar ve çoğu için burada biter.")
+[void]$ix.Add("2. Bir ekranı devralacaksan o ekranın ekini aç (aşağıdaki tablo).")
+[void]$ix.Add("3. Karar/iyileştirme tarafı: `99-iyilestirme.md`. Bu rehberin konusu değil.")
+[void]$ix.Add("")
+[void]$ix.Add("## Ekler")
+[void]$ix.Add("")
+[void]$ix.Add("| Dosya | Ekran | Satır |")
+[void]$ix.Add("|---|---|---|")
+foreach ($f in $ekler) {
+    $n = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8).Count
+    [void]$ix.Add("| [" + $f.Name + "](" + $f.Name + ") | " + ((@($ekEkran[$f.Name]) -join ', ')) + " | " + $n + " |")
+}
+[void]$ix.Add("")
+[void]$ix.Add("## Kapsam kontrolü")
+[void]$ix.Add("")
+$kapsamsiz = @($tumEkran | Where-Object { -not $kapsam.ContainsKey($_) })
+$cift = @($kapsam.Keys | Where-Object { @($kapsam[$_]).Count -gt 1 } | Sort-Object)
+$fazla = @($kapsam.Keys | Where-Object { $tumEkran -notcontains $_ } | Sort-Object)
+[void]$ix.Add("Ekran klasörü sayısı : " + $tumEkran.Count)
+[void]$ix.Add("Ek'te anlatılan      : " + @($kapsam.Keys | Where-Object { $tumEkran -contains $_ }).Count)
+[void]$ix.Add("")
+[void]$ix.Add("### Hiç anlatılmamış ekran (" + $kapsamsiz.Count + ")")
+[void]$ix.Add("")
+if ($kapsamsiz.Count -eq 0) { [void]$ix.Add("Yok — 14 ekranın hepsi kapsandı.") }
+foreach ($e in $kapsamsiz) { [void]$ix.Add("- **" + $e + "** — Adım 19'da bir gruba eklenmemiş") }
+[void]$ix.Add("")
+[void]$ix.Add("### İki ekte birden anlatılan ekran (" + $cift.Count + ")")
+[void]$ix.Add("")
+[void]$ix.Add("Bu satırlar varsa ÇELİŞKİ RİSKİ taşır: iki tur birbirinden habersiz yazdı.")
+[void]$ix.Add("İkisini yan yana oku, ayrıştıkları yeri düzelt.")
+[void]$ix.Add("")
+if ($cift.Count -eq 0) { [void]$ix.Add("Yok — her ekran tek ekte.") }
+foreach ($e in $cift) { [void]$ix.Add("- **" + $e + "** → " + (@($kapsam[$e]) -join ', ')) }
+if ($fazla.Count -gt 0) {
+    [void]$ix.Add("")
+    [void]$ix.Add("### Klasörü olmayan ekran adı (" + $fazla.Count + ")")
+    [void]$ix.Add("")
+    [void]$ix.Add("Ekte `## PG_X` başlığı var ama entry altında o klasör yok. Include sayfası")
+    [void]$ix.Add("veya popup olabilir; uydurma da olabilir — kontrol et.")
+    foreach ($e in $fazla) { [void]$ix.Add("- " + $e + " → " + (@($kapsam[$e]) -join ', ')) }
+}
+
+# ---------- D ciktisi ----------
+[void]$ix.Add("")
+[void]$ix.Add("## Servis çapraz kontrolü")
+[void]$ix.Add("")
+[void]$ix.Add("Ekte adı geçen ama o ekranın java dosyasında servis edinme çağrısı bulunmayan")
+[void]$ix.Add("isimler. KESİN HATA DEĞİL — çağrı Super'den, yardımcı sınıftan veya include")
+[void]$ix.Add("edilmiş sayfadan geliyor olabilir. Her satırı tek tek doğrula.")
+[void]$ix.Add("")
+$supheliSvc = 0
+foreach ($e in ($ekranMetin.Keys | Sort-Object)) {
+    $bilinenSvc = @()
+    if ($gercek.ContainsKey($e)) { $bilinenSvc = @($gercek[$e]) }
+    $gecen = @{}
+    foreach ($l in $ekranMetin[$e]) { foreach ($m in $rxSvcAd.Matches($l)) { $gecen[$m.Groups[1].Value] = $true } }
+    $ekstra = @($gecen.Keys | Where-Object { $bilinenSvc -notcontains $_ -and $stopSvc -notcontains $_ } | Sort-Object)
+    if ($ekstra.Count -eq 0) { continue }
+    $supheliSvc += $ekstra.Count
+    [void]$ix.Add("- **" + $e + "** — MATRISTE YOK: " + ($ekstra -join ', '))
+}
+if ($supheliSvc -eq 0) { [void]$ix.Add("Temiz — eklerde geçen her servis adı matriste var.") }
+
+[void]$ix.Add("")
+[void]$ix.Add("## Kanıtlanamayan adımlar (" + $kanitYok.Count + ")")
+[void]$ix.Add("")
+[void]$ix.Add("Model bu adımları çizemedi çünkü tarama dosyalarında karşılığını bulamadı.")
+[void]$ix.Add("Boşluk olduğu gibi duruyor — uydurulmadı. Önemliyse elle kapat.")
+[void]$ix.Add("")
+foreach ($k in $kanitYok) { [void]$ix.Add("- `" + $k.Dosya + ":" + $k.No + "` " + $k.Metin) }
+
+Set-Content (Join-Path $EK "REHBER-00-INDEX.md") -Value ($ix -join "`r`n") -Encoding UTF8
+
+# ---------- SORULAR.md ----------
+$sr = New-Object System.Collections.ArrayList
+[void]$sr.Add("# İş Birimine Sorulacaklar")
+[void]$sr.Add("")
+[void]$sr.Add("REHBER.md ve eklerinde [İŞ BİRİMİNE SORULACAK] işaretli her satır.")
+[void]$sr.Add("M13 topladı — elle düzenleme, ekler değişince yeniden üretilir.")
+[void]$sr.Add("")
+[void]$sr.Add("**Bu liste dolmadan rehber yeni gelene verilmemeli.** Yarısı teknik doğru,")
+[void]$sr.Add("iş tarafı boş bir doküman yanıltıcıdır: yeni gelen boşluğu kendi")
+[void]$sr.Add("varsayımıyla doldurur ve onu öğrenilmiş bilgi sanır.")
+[void]$sr.Add("")
+[void]$sr.Add("Toplam: " + $sorular.Count + " madde")
+[void]$sr.Add("")
+[void]$sr.Add("| # | Soru | Kaynak | Cevap |")
+[void]$sr.Add("|---|---|---|---|")
+$gorulen = @{}
+$sira = 0
+foreach ($s in $sorular) {
+    $anahtar = ($s.Metin -replace '\s+', ' ').ToLowerInvariant()
+    if ($gorulen.ContainsKey($anahtar)) { continue }
+    $gorulen[$anahtar] = $true
+    $sira++
+    $t = ($s.Metin -replace '^[-*>\s]+', '' -replace '\|', '/')
+    [void]$sr.Add("| " + $sira + " | " + $t + " | " + $s.Dosya + ":" + $s.No + " | |")
+}
+Set-Content (Join-Path $EK "SORULAR.md") -Value ($sr -join "`r`n") -Encoding UTF8
+
+"ekran klasoru      : " + $tumEkran.Count
+"kapsanmayan ekran  : " + $kapsamsiz.Count
+"iki ekte birden    : " + $cift.Count
+"klasorsuz ekran adi: " + $fazla.Count
+"supheli servis adi : " + $supheliSvc
+"KANIT YOK          : " + $kanitYok.Count
+"soru (ham/tekil)   : " + $sorular.Count + " / " + $sira
+"REHBER-00-INDEX.md : " + $ix.Count + " satir"
+"SORULAR.md         : " + $sr.Count + " satir"
+````
+
+**Ne bekliyoruz:** `kapsanmayan ekran 0`, `iki ekte birden 0`. İkisi de sıfır
+değilse rehber katmanı henüz tutarlı değil.
+
+`supheli servis adi` sıfırdan büyükse tek tek bak — bu, Adım 19'un
+uydurabileceği tek şeyin denetimi.
+
+`SORULAR.md`'deki **Cevap** sütunu boş bırakıldı; iş birimiyle otururken
+orayı doldur, sonra rehberdeki `[İŞ BİRİMİNE SORULACAK]` işaretlerini
+cevapla değiştir.
+
+---
+
 ## Copilot tarafı nasıl değişiyor
 
 ### Adım 8 → sadece yorum turu

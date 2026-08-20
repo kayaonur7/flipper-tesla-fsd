@@ -13,6 +13,8 @@ ekranlar/*.hazir.md    REFERANS       ekrana dokunacak kişi açar
 90a / 90b / 90c        SİSTEMİK       akış seviyesi problemler
 99-iyilestirme.md      KARAR          tek okunacak dosya
 REHBER.md (+EK'ler)    ANLATIM        yeni gelene verilecek dosya
+REHBER-00-INDEX.md     GİRİŞ          okuma sırası + kapsam denetimi
+SORULAR.md             AÇIK           iş birimine götürülecek liste
 ```
 
 ## Kime hangi dosya
@@ -73,10 +75,14 @@ durumda ve tekrar kullanılabilir — en pahalı adım oydu.
 ## İş katmanı eksikliği
 
 Analizin tamamı koddan türetildi ve kod *niçin* sorusunu cevaplamıyor. Bu yüzden
-`REHBER.md`'de iş gerekçesi gerektiren her yer `[İŞ BİRİMİNE SORULACAK]` diye
-işaretlenir ve Bölüm 9'da toplanır. O listeyi iş birimiyle veya kıdemli bir
-geliştiriciyle doldurmadan rehber yeni gelene verilmemeli — yarısı teknik
-doğru, iş tarafı boş bir doküman yanıltıcıdır.
+`REHBER.md`'de ve eklerinde iş gerekçesi gerektiren her yer
+`[İŞ BİRİMİNE SORULACAK]` diye işaretlendi; M13 hepsini `SORULAR.md`'de tek
+listede topluyor, cevap sütunu boş.
+
+O listeyi iş birimiyle veya kıdemli bir geliştiriciyle doldurmadan rehber yeni
+gelene verilmemeli. Yarısı teknik doğru, iş tarafı boş bir doküman
+yanıltıcıdır: yeni gelen boşluğu kendi varsayımıyla doldurur ve onu öğrenilmiş
+bilgi sanır — sonradan düzeltmesi, hiç okumamış olmasından zor.
 
 ## Kalan açık sorular
 

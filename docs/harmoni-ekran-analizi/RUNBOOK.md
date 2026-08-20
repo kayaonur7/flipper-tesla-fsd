@@ -1212,6 +1212,33 @@ dönüştürüyor. Akışa fiilen dokunacak ekipte değilsen 18'de durmak makul.
 
 ---
 
+## M13 — Rehber katmanını dizinle ve denetle
+
+**Adım 19'un bütün grupları bittikten sonra çalıştır.** `MEKANIZASYON.md` → M13.
+
+Yedi ek birbirinden habersiz yedi turda yazıldı — kodda bulduğun kopyala-yapıştır
+ıraksamasının aynısı dokümanda da olabilir. Blok dört mekanik denetim yapar:
+
+| | Ne çıkarır |
+|---|---|
+| Kapsam | Hiç anlatılmamış ekran, iki ekte birden anlatılan ekran (çelişki riski) |
+| Sorular | `[İŞ BİRİMİNE SORULACAK]` maddelerini tek listede toplar → `SORULAR.md` |
+| Kanıt | `KANIT YOK` işaretlerinin dökümü — modelin kapatamadığı boşluklar |
+| Servis | Ekte adı geçen ama `25-servis-matrisi`'nde o ekran için olmayan servis |
+
+Sonuncusu Adım 19'un uydurabileceği tek şeyin denetimi: anlatımı tamamlamak
+için var olmayan bir servis çağrısı yazmak. "MATRISTE YOK" kesin hata değil,
+**doğrulanacak** demek — çağrı `Super`'den veya bir yardımcı sınıftan geliyor
+olabilir.
+
+Çıktı: `docs/entry-akis/REHBER-00-INDEX.md` (giriş + denetim raporu) ve
+`docs/entry-akis/SORULAR.md` (iş birimine götürülecek liste, cevap sütunu boş).
+
+`kapsanmayan ekran` ve `iki ekte birden` sayaçlarının ikisi de sıfır değilse
+rehber katmanı henüz tutarlı değil.
+
+---
+
 ## [CP] Adım 16 — İyileştirme planı
 
 Yeni chat. P0 + aşağısı.

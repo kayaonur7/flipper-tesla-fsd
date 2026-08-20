@@ -67,7 +67,7 @@ PowerShell: Adım 0-6  →  M0, M1, M2, M3
 12 × grup sayısı  →  13  →  14 + elle spot-check  →  16
 
 Anlatım katmanı (analizden sonra):
-17  →  M12 (diyagramlar)  →  18  →  19 × grup sayısı (isteğe bağlı)
+17  →  M12 (diyagramlar)  →  18  →  19 × grup sayısı  →  M13 (dizin + denetim)
 ```
 
 ## Yeniden üretme
