@@ -26,6 +26,8 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
 | `13-konsolidasyon.txt` | Konsolidasyon | Sonnet | `90-konsolidasyon.md` |
 | `16-iyilestirme.txt` | İyileştirme planı | Sonnet | `99-iyilestirme.md` |
 | `17-rehber.txt` | Onboarding rehberi — ekibe yeni gelen için anlatım | Sonnet | `REHBER.md` |
+| `18-rehber-diyagram.txt` | Rehbere diyagram + senaryo ekle (önce M12) | Sonnet | `REHBER.md` güncellenir |
+| `19-ekran-derinlik.txt` | Ekran ekran derinlik — grup başına bir tur | Sonnet | `REHBER-EK-<grup>.md` |
 
 ## Elle doldurman gerekenler
 
@@ -36,6 +38,8 @@ Kullanım: dosyayı VS Code'da aç → `Ctrl+A` → `Ctrl+C` → Copilot chat'e 
   "Derin Analiz Planı" tablosundan gelir. Bu prompt grup sayısı kadar
   çalıştırılır.
 - **`13-konsolidasyon.txt`** — tüm ekran kartlarını `#file:` ile ekle.
+- **`19-ekran-derinlik.txt`** — `# BU TURUN KAPSAMI`'ndaki grup adı ve ekran
+  listesi, artı o ekranların kart dosyaları. Grup sayısı kadar çalıştırılır.
 
 > **Model seçimi — ölçülmüş davranış.** Bu kurulumda denenen her Opus turu
 > zaman aşımına uğradı (Adım 9, 9a ×2, 9c), denenen her Sonnet turu bitti
@@ -61,6 +65,9 @@ PowerShell: Adım 0-6  →  M0, M1, M2, M3
 07  →  M4  →  M6 (kırpma)  →  08  →  M7 (state)  →  09a  →  09b  →  09c
 10 + elle spot-check
 12 × grup sayısı  →  13  →  14 + elle spot-check  →  16
+
+Anlatım katmanı (analizden sonra):
+17  →  M12 (diyagramlar)  →  18  →  19 × grup sayısı (isteğe bağlı)
 ```
 
 ## Yeniden üretme

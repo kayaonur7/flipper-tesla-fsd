@@ -13,6 +13,7 @@ sorusuna gider.
 | M2 | `_tarama/21-event-handler.txt` — CCT olayı ↔ java handler eşlemesi | Adım 12'nin olay haritası bölümü |
 | M3 | `_tarama/22-lang-durumu.txt` — tr/en farkı, ölü key'ler | Adım 12'nin i18n bölümü |
 | M4 | `ekranlar/<PG_X>.hazir.md` — ekran başına ön-doldurulmuş kart | Adım 12'nin %70'i |
+| M12 | `_diyagram/DIYAGRAMLAR.md` — 5 Mermaid diyagramı | Adım 18'in çizim işi |
 
 ---
 
@@ -55,6 +56,10 @@ Adım 7  envanter + konvansiyon        [Copilot]
 M0  (yeni sekmedeysen tekrar)
 M4  kart on-doldurma          ($svcRx'i 00a'ya gore daralt)
 Adım 8'den itibaren devam            [Copilot]
+...
+Adım 17  onboarding rehberi          [Copilot]
+M12 diyagramlar
+Adım 18  rehberi diyagramlarla derinleştir   [Copilot]
 ```
 
 ---
@@ -1584,6 +1589,271 @@ bunlara bağlar — 14 kart yerine tek dosya.
 
 `... kırpıldı` satırı görürsen o bölüm 60 satırı aşmış; gerekiyorsa
 `$SATIR_LIMIT`'i yükselt, ama girdi yeniden şişer.
+
+---
+
+## M12 — Diyagram üretici
+
+Rehberi zenginleştirmek için Mermaid çizimleri gerekiyor. Bunların çoğu
+**yorum değil, veri projeksiyonu** — modele çizdirmek hem pahalı hem hatalı
+(model düğüm adını yanlış yazar, kenarı atlar, kapsam dışı hedefi uydurur).
+Bu blok deterministik olanların hepsini üretir; modele yalnızca *hangi
+senaryonun anlatılmaya değer olduğu* kararı ve sequence diagram kalır.
+
+| Diyagram | İçerik | Kaynak |
+|---|---|---|
+| D1 | Akış grafiği, conversation'lara göre gruplanmış; kapsam dışı hedefler kesikli | `cct-*.csv` |
+| D2 | Ekran → servis haritası, 4+ ekranda ortak servisler ayrı kutuda | java taraması |
+| D3 | Paylaşılan state: hangi ekran hangi taşıyıcıya yazıyor, kim okuyor | `24b-state-paylasilan.txt` |
+| D4 | Karar noktaları — yalnızca `DECISION` düğümleri ve dalları | `cct-trans.csv` |
+| D5 | Ekran anatomisi — bir ekranın 4 ağaca dağılmış dosyaları (sabit şablon) |
+
+> M1'in grafiği düz bir `flowchart`; 19 TASK tek yığın hâlinde. D1 aynı veriyi
+> conversation sınırlarıyla gruplar ve `entry` dışına çıkan geçişleri işaretler.
+> Rehberde kullanılacak olan D1, M1'inki değil.
+
+**Önce M0** (veya CSV'ler diskte olsun). M7 ve M8 çalışmışsa D3 dolu gelir;
+çalışmamışsa D3 boş üretilir ve dosyaya "kaynak yok" notu düşer.
+
+````powershell
+$W = "src\main\webapp\page\acq\application\entry"
+$J = "src\main\java\com\ykb\hmn\acq\application\entry\controllers"
+$O = "docs\entry-akis\_tarama"
+$D = "docs\entry-akis\_diyagram"
+New-Item -ItemType Directory -Force $D | Out-Null
+if (-not $tasks -or @($tasks).Count -eq 0) { $convs = @(Import-Csv "$O\cct-convs.csv"); $tasks = @(Import-Csv "$O\cct-tasks.csv"); $trans = @(Import-Csv "$O\cct-trans.csv") }
+"girdi: conv={0} task={1} trans={2}" -f @($convs).Count, @($tasks).Count, @($trans).Count
+
+function Norm($s) { if (-not $s) { return 'X' } ; return ($s -replace '[^A-Za-z0-9_]', '_') }
+function Kisa($s) { if (-not $s) { return '?' } ; return @($s -split '[/\\]')[-1] }
+function Lbl($s)  { if (-not $s) { return '?' } ; return ((($s -replace '["\[\]\(\){}|<>#;]', ' ') -replace '\s+', ' ')).Trim() }
+
+$fence = '```'
+$md = New-Object System.Collections.ArrayList
+[void]$md.Add("# Diyagramlar")
+[void]$md.Add("")
+[void]$md.Add("M12 üretti. ELLE DÜZENLEME — blok yeniden koşunca kaybolur.")
+[void]$md.Add("Anlatım ve yorum REHBER.md'de; bu dosya yalnızca çizim kaynağı.")
+[void]$md.Add("")
+
+# ---------- D1: akis grafigi ----------
+$convDefault = @{}
+foreach ($c in $convs) { if ($c.ConvID) { $convDefault[$c.ConvID] = $c.DefaultTask } }
+$bilinen = @{}
+foreach ($t in $tasks) { $bilinen[$t.TaskID] = $t.Page }
+
+[void]$md.Add("## D1 — Akış grafiği")
+[void]$md.Add("")
+[void]$md.Add("Kutular conversation'lara göre gruplandı. Kesikli ok = hedef TASK entry")
+[void]$md.Add("CCT'lerinde tanımlı değil, akış kapsam dışına çıkıyor.")
+[void]$md.Add("")
+[void]$md.Add($fence + "mermaid")
+[void]$md.Add("flowchart TD")
+$yazildi = @{}
+foreach ($c in ($convs | Sort-Object ConvID)) {
+    $ct = @($tasks | Where-Object { $_.ConvID -eq $c.ConvID })
+    if ($ct.Count -eq 0) { continue }
+    [void]$md.Add('  subgraph SG' + (Norm $c.ConvID) + '["' + (Lbl $c.ConvID) + '"]')
+    foreach ($t in ($ct | Sort-Object TaskID -Unique)) {
+        if ($yazildi.ContainsKey($t.TaskID)) { continue }
+        [void]$md.Add('    ' + (Norm $t.TaskID) + '["' + (Lbl (Kisa $t.Page)) + '<br/>' + (Lbl $t.TaskID) + '"]')
+        $yazildi[$t.TaskID] = $true
+    }
+    [void]$md.Add("  end")
+}
+# Conversation'i eslesmeyen TASK'lar: subgraph disina yaz, yoksa Mermaid
+# etiketsiz cikplak dugum uretir
+foreach ($t in ($tasks | Sort-Object TaskID -Unique)) {
+    if ($yazildi.ContainsKey($t.TaskID)) { continue }
+    [void]$md.Add('  ' + (Norm $t.TaskID) + '["' + (Lbl (Kisa $t.Page)) + '<br/>' + (Lbl $t.TaskID) + '"]')
+    $yazildi[$t.TaskID] = $true
+}
+$kenar = @{}
+foreach ($r in $trans) {
+    $from = Norm $r.FromTask
+    $hedef = $r.NextTask
+    if (-not $hedef -and $r.NextConv) { $hedef = $convDefault[$r.NextConv] }
+    $ok = '-->'
+    $to = ''
+    if (-not $hedef) {
+        $to = 'SON_' + $from
+        if (-not $yazildi.ContainsKey($to)) { [void]$md.Add('  ' + $to + '((son))'); $yazildi[$to] = $true }
+    }
+    if ($hedef) {
+        $to = Norm $hedef
+        if (-not $bilinen.ContainsKey($hedef)) {
+            $ok = '-.->'
+            if (-not $yazildi.ContainsKey($hedef)) { [void]$md.Add('  ' + $to + '["' + (Lbl $hedef) + '<br/>kapsam disi"]'); $yazildi[$hedef] = $true }
+        }
+    }
+    $et = $r.Event
+    if (-not $et) { $et = $r.CtrlEvent }
+    $satir = '  ' + $from + ' ' + $ok + '|' + (Lbl $et) + '| ' + $to
+    if (-not $kenar.ContainsKey($satir)) { [void]$md.Add($satir); $kenar[$satir] = $true }
+}
+[void]$md.Add($fence)
+$d1Kenar = $kenar.Count
+
+# ---------- D2: ekran -> servis ----------
+function Get-Aktif12($path) { $res = New-Object System.Collections.ArrayList; $blok = $false; foreach ($l in (Get-Content -LiteralPath $path)) { $t = $l.Trim(); if ($blok) { if ($t -match '\*/') { $blok = $false }; continue }; if ($t -match '^/\*') { if ($t -notmatch '\*/') { $blok = $true }; continue }; if ($t.StartsWith('//') -or $t.StartsWith('*')) { continue }; [void]$res.Add($l) }; return $res }
+
+$devJava = @(Get-ChildItem $J -File -Filter *.java | Where-Object { $_.BaseName -notmatch 'Super$' })
+$rxAcq = @([regex]'RemoteUtility\.getServiceCloudVersion\s*\(\s*(\w+)\.class', [regex]'RemoteUtility\.get(?!ServiceCloudVersion)(\w+)\s*\(', [regex]'getRemote\s*\(\s*(\w+)\.class', [regex]'\bgetService\s*\(\s*(\w+)\.class')
+$ekranServis = @{}
+$servisSayac = @{}
+foreach ($f in $devJava) {
+    $set = New-Object System.Collections.ArrayList
+    foreach ($l in (Get-Aktif12 $f.FullName)) {
+        foreach ($rx in $rxAcq) { foreach ($m in $rx.Matches($l)) { $sv = $m.Groups[1].Value; if ($set -notcontains $sv) { [void]$set.Add($sv) } } }
+    }
+    if ($set.Count -gt 0) {
+        $ekranServis[$f.BaseName] = $set
+        foreach ($sv in $set) { if (-not $servisSayac.ContainsKey($sv)) { $servisSayac[$sv] = 0 }; $servisSayac[$sv]++ }
+    }
+}
+[void]$md.Add("")
+[void]$md.Add("## D2 — Ekran → servis haritası")
+[void]$md.Add("")
+[void]$md.Add("Yuvarlak kutu = servis. Soldaki kutuda 4+ ekranın ortak kullandığı servisler:")
+[void]$md.Add("bunlar akışın omurgası, imzaları değişirse çok yerde kırılır.")
+[void]$md.Add("")
+[void]$md.Add($fence + "mermaid")
+[void]$md.Add("flowchart LR")
+$ortak = @($servisSayac.Keys | Where-Object { $servisSayac[$_] -ge 4 } | Sort-Object)
+if ($ortak.Count -gt 0) {
+    [void]$md.Add('  subgraph ORTAK["4+ ekranda ortak"]')
+    foreach ($sv in $ortak) { [void]$md.Add('    ' + (Norm $sv) + '(["' + (Lbl $sv) + '"])') }
+    [void]$md.Add('  end')
+}
+foreach ($sv in ($servisSayac.Keys | Sort-Object)) { if ($ortak -notcontains $sv) { [void]$md.Add('  ' + (Norm $sv) + '(["' + (Lbl $sv) + '"])') } }
+foreach ($e in ($ekranServis.Keys | Sort-Object)) {
+    [void]$md.Add('  ' + (Norm $e) + '["' + (Lbl $e) + '"]')
+    foreach ($sv in $ekranServis[$e]) { [void]$md.Add('  ' + (Norm $e) + ' --> ' + (Norm $sv)) }
+}
+[void]$md.Add($fence)
+
+# ---------- D3: paylasilan state ----------
+[void]$md.Add("")
+[void]$md.Add("## D3 — Paylaşılan state")
+[void]$md.Add("")
+$sf = "$O\24b-state-paylasilan.txt"
+$tipAlan = @{}; $tipYazan = @{}; $tipOkuyan = @{}
+if (Test-Path $sf) {
+    $ic = $false
+    foreach ($l in (Get-Content -LiteralPath $sf -Encoding UTF8)) {
+        if ($l -match '^##\s+PAYLASILAN') { $ic = $true; continue }
+        if ($l -match '^##\s') { $ic = $false; continue }
+        if (-not $ic) { continue }
+        if ($l -notmatch '^\|') { continue }
+        if ($l -match '^\|\s*[-: ]+\|' -or $l -match '^\|\s*Tasiyici') { continue }
+        $p = @((($l.Trim() -replace '^\|', '') -replace '\|$', '') -split '\|' | ForEach-Object { $_.Trim() })
+        if ($p.Count -lt 3) { continue }
+        $tip = @($p[0] -split '\.')[0]
+        if (-not $tipAlan.ContainsKey($tip)) { $tipAlan[$tip] = 0; $tipYazan[$tip] = New-Object System.Collections.ArrayList; $tipOkuyan[$tip] = New-Object System.Collections.ArrayList }
+        $tipAlan[$tip]++
+        foreach ($x in @($p[1] -split ',')) { $v = $x.Trim(); if ($v -and $tipYazan[$tip] -notcontains $v) { [void]$tipYazan[$tip].Add($v) } }
+        foreach ($x in @($p[2] -split ',')) { $v = $x.Trim(); if ($v -and $tipOkuyan[$tip] -notcontains $v) { [void]$tipOkuyan[$tip].Add($v) } }
+    }
+}
+if ($tipAlan.Count -eq 0) { [void]$md.Add("KAYNAK YOK: 24b-state-paylasilan.txt bulunamadi veya PAYLASILAN bolumu bos. M7 calistir.") }
+if ($tipAlan.Count -gt 0) {
+    [void]$md.Add("Ok = yazma yönü. Kutunun içindeki sayı o taşıyıcıdaki paylaşılan alan sayısı.")
+    [void]$md.Add("Bir ekran hem yazıp hem okuyorsa iki yönde de ok vardır.")
+    [void]$md.Add("")
+    [void]$md.Add($fence + "mermaid")
+    [void]$md.Add("flowchart LR")
+    foreach ($tip in ($tipAlan.Keys | Sort-Object)) { [void]$md.Add('  ' + (Norm $tip) + '[("' + (Lbl $tip) + '<br/>' + $tipAlan[$tip] + ' alan")]') }
+    $ek3 = @{}
+    foreach ($tip in $tipAlan.Keys) { foreach ($e in (@($tipYazan[$tip]) + @($tipOkuyan[$tip]))) { $ek3[$e] = $true } }
+    foreach ($e in ($ek3.Keys | Sort-Object)) { [void]$md.Add('  ' + (Norm $e) + '["' + (Lbl $e) + '"]') }
+    foreach ($tip in ($tipAlan.Keys | Sort-Object)) {
+        foreach ($e in ($tipYazan[$tip] | Sort-Object)) { [void]$md.Add('  ' + (Norm $e) + ' -->|yazar| ' + (Norm $tip)) }
+        foreach ($e in ($tipOkuyan[$tip] | Sort-Object)) { [void]$md.Add('  ' + (Norm $tip) + ' -->|okur| ' + (Norm $e)) }
+    }
+    [void]$md.Add($fence)
+}
+
+# ---------- D4: karar noktalari ----------
+[void]$md.Add("")
+[void]$md.Add("## D4 — Karar noktaları")
+[void]$md.Add("")
+$kararlar = @($trans | Where-Object { $_.ParentTag -eq 'DECISION' })
+if ($kararlar.Count -eq 0) { [void]$md.Add("CCT'de DECISION düğümü yok — dallanma ControllerEvent token'larıyla yapılıyor, D1'e bak.") }
+if ($kararlar.Count -gt 0) {
+    [void]$md.Add("Eşkenar dörtgen = DECISION düğümü. Kenar etiketi = o dala götüren ControllerEvent.")
+    [void]$md.Add("")
+    [void]$md.Add($fence + "mermaid")
+    [void]$md.Add("flowchart TD")
+    $k4 = @{}
+    foreach ($r in $kararlar) {
+        $dn = 'K_' + (Norm $r.FromTask) + '_' + (Norm $r.Event)
+        if (-not $k4.ContainsKey($dn)) { [void]$md.Add('  ' + $dn + '{"' + (Lbl $r.FromPage) + '<br/>' + (Lbl $r.Event) + '"}'); $k4[$dn] = $true }
+        $hedef = $r.NextTask
+        if (-not $hedef -and $r.NextConv) { $hedef = $convDefault[$r.NextConv] }
+        if (-not $hedef) { $hedef = 'son' }
+        $hn = (Norm $hedef)
+        if (-not $k4.ContainsKey($hn)) { [void]$md.Add('  ' + $hn + '["' + (Lbl $hedef) + '"]'); $k4[$hn] = $true }
+        $s4 = '  ' + $dn + ' -->|' + (Lbl $r.CtrlEvent) + '| ' + $hn
+        if (-not $k4.ContainsKey($s4)) { [void]$md.Add($s4); $k4[$s4] = $true }
+    }
+    [void]$md.Add($fence)
+}
+
+# ---------- D5: ekran anatomisi (sabit) ----------
+[void]$md.Add("")
+[void]$md.Add("## D5 — Bir ekran nerede yaşıyor")
+[void]$md.Add("")
+[void]$md.Add("Tek bir ekran dört ayrı ağaca dağılmış ~10 dosyadan oluşuyor. Yeni gelenin")
+[void]$md.Add("en çok takıldığı yer burası: `PG_X.java` dosyasını bulup akışı orada arıyor.")
+[void]$md.Add("")
+[void]$md.Add($fence + "mermaid")
+[void]$md.Add("flowchart TD")
+[void]$md.Add('  subgraph CCT["webapp/cct"]')
+[void]$md.Add('    C1["con_acqX.cct<br/>AKIS TANIMI"]')
+[void]$md.Add('  end')
+[void]$md.Add('  subgraph JAVA["java/com/ykb/hmn/.../controllers"]')
+[void]$md.Add('    J1["PG_X.java<br/>IS MANTIGI"]')
+[void]$md.Add('    J2["PG_XSuper.java<br/>URETILMIS - widget sozlesmesi"]')
+[void]$md.Add('    J3["Con_acqX.java<br/>conversation controller"]')
+[void]$md.Add('  end')
+[void]$md.Add('  subgraph DTO["java/com/ykb/acq/application/entry"]')
+[void]$md.Add('    D1a["request / response / util<br/>SERVIS SOZLESMESI"]')
+[void]$md.Add('  end')
+[void]$md.Add('  subgraph WEB["webapp/page/acq/application/entry/PG_X"]')
+[void]$md.Add('    W1["PG_X.html<br/>widget + IncludedPage"]')
+[void]$md.Add('    W2["PG_X.js<br/>istemci davranisi"]')
+[void]$md.Add('    W3["PG_X_lang_tr.json / _en.json"]')
+[void]$md.Add('    W4["PG_X.properties / _auth.properties"]')
+[void]$md.Add('  end')
+[void]$md.Add('  C1 -->|PageController| J1')
+[void]$md.Add('  C1 -->|PageName| W1')
+[void]$md.Add('  J1 -.->|extends| J2')
+[void]$md.Add('  J2 -.->|widget alanlari| W1')
+[void]$md.Add('  J1 -->|servis cagrisi| D1a')
+[void]$md.Add('  W1 -.->|lang key| W3')
+[void]$md.Add('  J1 -->|setControllerEvent| C1')
+[void]$md.Add($fence)
+
+Set-Content (Join-Path $D "DIYAGRAMLAR.md") -Value ($md -join "`r`n") -Encoding UTF8
+"D1 dugum/kenar   : {0} / {1}" -f $yazildi.Count, $d1Kenar
+"D2 ekran/servis  : {0} / {1}   (4+ ortak: {2})" -f $ekranServis.Count, $servisSayac.Count, $ortak.Count
+"D3 tasiyici tipi : " + $tipAlan.Count
+"D4 karar gecisi  : " + $kararlar.Count
+"DIYAGRAMLAR.md   : " + $md.Count + " satir"
+````
+
+**Beklenen mertebe:** D1 19 düğüm civarı, D2 20-25 ekran, D3 birkaç taşıyıcı
+tipi (`ApplicationInfo` başta), D4 CCT'de `DECISION` varsa dolu — yoksa blok
+"dallanma token'larla yapılıyor" notunu yazar, bu da bir bulgudur.
+
+**Çıktıyı önizle:** `DIYAGRAMLAR.md`'i VS Code'da aç, `Ctrl+Shift+V`. Mermaid
+render etmezse **Markdown Preview Mermaid Support** eklentisi gerekiyor;
+GitHub'da `.md` içindeki mermaid bloğu kendiliğinden çizilir.
+
+Bir diyagram render edilmiyorsa sebep neredeyse her zaman düğüm etiketindeki
+bir karakterdir. `Lbl` fonksiyonu `" [ ] ( ) { } | < > # ;` karakterlerini
+temizliyor; başka bir karakter kaçtıysa onu da `Lbl`'e ekle ve bloğu yeniden
+koş — üretilen dosyayı elle düzeltme, bir sonraki koşuda kaybolur.
 
 ---
 

@@ -1,0 +1,180 @@
+# ÇALIŞTIRMA: Copilot agent mode, model = Claude Sonnet.
+# Opus bu kurulumda zaman aşımına uğruyor — Opus SEÇME.
+
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       rolü DOĞRULANMADI
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties'in ROLÜ DOĞRULANMADI. Adından yetki dosyası sanılabilir
+   ama 15 dosyanın 14'ü boş, dolu olan tek dosya (PG_TerminalInfo) validasyon
+   HATA MESAJLARI içeriyor:
+     INVALID_FINANCIAL_ID_ERROR = Girilen Mali ID ... uygun degil.
+   Bu dosyaya "yetki tanımı" deme. Ne olduğunu framework'ten veya başka
+   akışlardaki örneklerden türet; türetemezsen "BİLİNMİYOR" yaz.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- İLK İŞ — GİRDİ KONTROLÜ: Göreve başlamadan önce # GİRDİ bölümündeki her
+  dosyayı aç ve tek satırda bildir:
+      <dosya adı> : <satır sayısı> satır — <ilk başlığı>
+  Açamadığın veya bulamadığın dosya varsa DUR, "GİRDİ YÜKLENMEDİ: <dosya>"
+  yaz ve göreve BAŞLAMA. Eksik girdiyle üretilen çıktı işe yaramaz.
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Bir girdi dosyasının hatalı/eksik/yanlış olduğunu İDDİA EDECEKSEN önce
+  ondan ALINTI yap: ilk 3 satırı ve satır sayısını yaz. Alıntı yapamıyorsan
+  iddiayı yazma ve görevi dosyanın gerçek içeriğiyle yap. Bir dosyanın
+  bozuk olduğunu varsayıp görevi atlamak YASAK.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+
+# GİRDİ
+#file:docs/entry-akis/REHBER.md
+#file:docs/entry-akis/_diyagram/DIYAGRAMLAR.md
+#file:docs/entry-akis/00b-akis.md
+#file:docs/entry-akis/_tarama/25-servis-matrisi.txt
+#file:docs/entry-akis/_tarama/24b-state-paylasilan.txt
+
+# GÖREV
+REHBER.md'yi diyagramlarla ve senaryo anlatımıyla derinleştir. Hedef dosya
+AYNI dosyadır: docs/entry-akis/REHBER.md — yerinde güncelle.
+
+# EN ÖNEMLİ KURAL — MEVCUT İÇERİĞİ SİLME
+REHBER.md'nin var olan bölümleri, cümleleri ve özellikle
+[İŞ BİRİMİNE SORULACAK] işaretleri KORUNUR. Sen ekleme yapıyorsun,
+yeniden yazmıyorsun. Bir cümleyi ancak diyagram onu gereksiz kıldıysa
+kısaltabilirsin; silmen gerekiyorsa neden sildiğini Bölüm 10'a not düş.
+
+# DİYAGRAM KURALI
+DIYAGRAMLAR.md'deki D1-D5 bloklarını REHBER.md'ye OLDUĞU GİBİ kopyala.
+Mermaid kodunu DEĞİŞTİRME, düğüm ekleme, etiket düzeltme, sadeleştirme YAPMA.
+O bloklar script üretti; elle değiştirilirse bir sonraki koşuda kaybolur ve
+kodla tutarsız hâle gelir.
+
+Senin işin diyagramın ETRAFINI yazmak:
+- diyagramdan önce: "buna neden bakıyoruz, ne göreceksin" (2-3 cümle)
+- diyagramdan sonra: "bu grafikte dikkat edilecek 3 şey" (madde madde,
+  düğüm/kenar adı vererek)
+
+Yerleşim:
+  D5 (ekran anatomisi)  → Bölüm 7'nin başına, "yeni gelen en çok buna takılır"
+  D1 (akış grafiği)     → Bölüm 3'ün başına
+  D4 (karar noktaları)  → Bölüm 4'e
+  D3 (paylaşılan state) → Bölüm 5'e
+  D2 (ekran → servis)   → Bölüm 6'ya
+
+# YENİ BÖLÜM — SENARYOLAR (sequenceDiagram)
+REHBER.md'ye Bölüm 3 ile 4 arasına "## 3B. Uçtan Uca Senaryolar" ekle.
+ÜÇ senaryo yaz, her biri bir mermaid sequenceDiagram:
+
+  S1  Mutlu yol: başvurunun baştan sona tamamlanması
+  S2  En sık dallanan karar: hangi koşulda hangi ekrana gidiliyor
+  S3  İptal / geri dönüş: kullanıcı vazgeçtiğinde state'e ne oluyor
+
+Her sequenceDiagram'da katılımcılar:
+    Kullanici, PG_<ekran>, Con_<conversation>, <ServisAdi>, BE
+
+KURAL: sequenceDiagram'daki her mesaj oku KANITA dayanmalı.
+- Ekran geçişi   → 00b-akis.md veya D1'deki bir kenar
+- Servis çağrısı → 25-servis-matrisi.txt'deki bir satır
+- State yazma    → 24b-state-paylasilan.txt'deki bir satır
+Kanıtı olmayan oku ÇİZME. Bir adımı çizemiyorsan diyagrama
+    Note over Kullanici: <adim> — KANIT YOK
+yaz ve geç. Akışı tamamlamak için ara adım UYDURMA.
+
+Her senaryonun altına "Kanıt" başlığıyla, hangi okun hangi dosyadan geldiğini
+kısa bir tablo hâlinde yaz.
+
+# YENİ BÖLÜM — EKRAN ÖZET TABLOSU
+Bölüm 3'ün sonuna, 14 ekranı tek bakışta gösteren tablo:
+
+| Ekran | TaskID | Ne yapılıyor | Yazdığı state | Çağırdığı servis | Çıkış olayları |
+
+Doldurulamayan hücreye "—" yaz, tahmin etme.
+
+# BÖLÜM 10 — DEĞİŞİKLİK NOTU
+Dosyanın sonuna "## 10. Bu Turda Ne Eklendi" başlığı aç:
+- eklenen diyagramlar
+- eklenen senaryolar
+- KANIT YOK işareti koyduğun adımlar
+- sildiğin veya kısalttığın bir şey varsa gerekçesi
+
+# ÇALIŞMA SIRASI — ZAMAN AŞIMI ÖNLEMİ
+Bu iş tek üretimde bitmez. Şu sırayla çalış ve HER ADIMDAN SONRA DOSYAYA YAZ:
+  1. D5 + D1 + ekran özet tablosu  → yaz
+  2. S1 + S2 + S3 senaryoları      → yaz
+  3. D4 + D3 + D2                  → yaz
+  4. Bölüm 10                      → yaz
+Kesilirsen REHBER.md'yi oku, hangi adımın bittiğini gör, oradan devam et.
+Sohbete diyagram yapıştırma; hepsi dosyaya.
+
+# KURAL
+İyileştirme önerisi yazma. Bu doküman "nasıl çalışıyor"u anlatır.
+Bilmediğin iş gerekçesini uydurma — [İŞ BİRİMİNE SORULACAK] yaz ve
+Bölüm 9'daki listeye ekle.

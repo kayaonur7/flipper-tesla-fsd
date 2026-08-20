@@ -1,0 +1,170 @@
+# ÇALIŞTIRMA: Copilot agent mode, model = Claude Sonnet.
+# Opus bu kurulumda zaman aşımına uğruyor — Opus SEÇME.
+
+# HARMONİ — TEMEL
+Kuruma özel, kapalı kaynak framework. Eğitim verinde YOK. Spring/JSF/Struts
+konvansiyonlarını VARSAYMA. Bilmediğin bir mekanizmayı repodaki başka
+örneklerden türet ve "TÜRETİLDİ (kaynak: <dosya>)" diye işaretle.
+Türetemezsen "BİLİNMİYOR" yaz. Tahmin etme.
+
+## Bir ekranın ayak izi
+java\...\hmn\acq\application\entry\controllers\
+    PG_X.java              geliştirici kodu — İŞ MANTIĞI BURADA
+    PG_XSuper.java         ÜRETİLMİŞ taban sınıf — widget binding, iş kuralı DEĞİL
+    Con_acqX.java          conversation controller (dev)
+    Con_acqXSuper.java     ÜRETİLMİŞ
+webapp\cct\con_acqX.cct    AKIŞ TANIMI (XML)
+webapp\page\acq\application\entry\PG_X\
+    PG_X.html, PG_X.js, PG_X.properties,
+    PG_X_auth.properties       rolü DOĞRULANMADI
+    PG_X_lang_en.json / PG_X_lang_tr.json
+
+## CCT olay modeli — DİKKAT
+Event           : ACTION/DECISION üzerindeki UI olayı. Koddaki onXxx handler'ına
+                  karşılık gelir.
+ControllerEvent : geçişin SONUÇ TOKEN'ı. HANDLER METODU DEĞİLDİR.
+                  Sayfa controller'ı çalışma zamanında
+                  eventData.setControllerEvent(TOKEN) ile üretir; framework bu
+                  token'a bakıp hangi TRANSITION'ın işleyeceğine karar verir.
+                  Token sabit olarak tanımlı olabilir:
+                    public static final String STAY_ON_PAGE = "STAY_ON_PAGE";
+                    eventData.setControllerEvent(PricingConstants.STAY_ON_PAGE);
+                  ControllerEvent adında metot ARAMA — bulamazsın.
+                  İki argümanlı overload da var:
+                    setControllerEvent(eventData, "TOKEN")
+
+## CCT — akışın kaynağı
+CONVERSATION (ConvID, ConvController, DefaultTaskID, FunctionalArea)
+  └ TASK (PageName, PageController, TaskID, CancelButton/ConfirmButton/TabVisible)
+      └ ACTION (Event)
+          └ TRANSITION (ControllerEvent, NextConvID, NextTaskID, InvocationMode, FlagEOC)
+      └ DECISION (Event, koşullu dallanma)
+Geçişler burada deklaratif olarak tanımlı.
+
+## KRİTİK KURALLAR
+1. *Super.java ÜRETİLMİŞ koddur — ama boş değil.
+   İŞ MANTIĞI: Super'siz sınıfta. Super'den iş kuralı ÇIKARMA.
+   YAPISAL SÖZLEŞME: Super'de — alan/widget tanımları ve included page'ler.
+   Bunları Super'den okumak DOĞRU. İkisini karıştırma.
+2. INCLUDE mekanizması iki yerde tanımlı:
+   HTML   : <div data-type="IncludedPage" data-page-name="acq/include/account/PG_IncludeApplicationAccount">
+   Super  : protected IIncludedPage<PG_IncludeApplicationAccount> getPageAccount()
+   Include sayfaları page\acq\include\... altında, ayrı ağaçta. Akışın parçası.
+3. 14 ekranın 4'ünün CCT'de TASK'ı YOK — PG_AccountWalletPopup, PG_AddNote,
+   PG_LoyaltyProgramRatePopup, PG_TagOperation. Bunlar koddan açılıyor;
+   CCT grafiğinde bulamazsan bu yüzdendir, uydurma.
+4. Conversation'lar akış sınırını aşıyor. con_acqmerchantupdate.cct entry
+   klasöründe olmayan ekranları TASK olarak içeriyor.
+5. İki java ağacı var: controller'lar com.ykb.hmn.acq...,
+   DTO'lar com.ykb.acq.application.entry.{request,response,util}
+6. _auth.properties'in ROLÜ DOĞRULANMADI. Adından yetki dosyası sanılabilir
+   ama 15 dosyanın 14'ü boş, dolu olan tek dosya (PG_TerminalInfo) validasyon
+   HATA MESAJLARI içeriyor:
+     INVALID_FINANCIAL_ID_ERROR = Girilen Mali ID ... uygun degil.
+   Bu dosyaya "yetki tanımı" deme. Ne olduğunu framework'ten veya başka
+   akışlardaki örneklerden türet; türetemezsen "BİLİNMİYOR" yaz.
+
+## Repolar
+FE: hmnfe_acq_merchant (bu repo)   BE: hmn_acq_merchant
+  HMN_ACQ_Merchant_Intf (servis arayüzü) / _Model (DTO) / _Internal (impl)
+Jackson 2.9.6. Excel rapor: HopeReportGenerator (server-side, reportId).
+
+## Kapsam
+cct/page/acq/application/entry — üye işyeri başvuru akışı, 14 ekran + include'lar.
+Kardeş akışlar (kapsam dışı, bağımlılık olabilir): annulment, branchopening,
+inquiry, template. ACQ = Acquiring / üye işyeri.
+
+# ÇALIŞMA DİSİPLİNİ
+- İLK İŞ — GİRDİ KONTROLÜ: Göreve başlamadan önce # GİRDİ bölümündeki her
+  dosyayı aç ve tek satırda bildir:
+      <dosya adı> : <satır sayısı> satır — <ilk başlığı>
+  Açamadığın veya bulamadığın dosya varsa DUR, "GİRDİ YÜKLENMEDİ: <dosya>"
+  yaz ve göreve BAŞLAMA. Eksik girdiyle üretilen çıktı işe yaramaz.
+- docs/entry-akis/_tarama/ altındaki dosyalarda olan bilgi için ARAMA YAPMA,
+  dosyayı oku. Tarama çıktısı tek doğruluk kaynağıdır.
+- Her ana bölümü bitirir bitmez hedef dosyaya YAZ. Sonda toplu yazma.
+- Aynı dosyayı iki kez okuma.
+- Sohbette özet yapma; hedef dosyaya yaz, sonunda tek paragraf durum bildir.
+- Bir tarama dosyası boşsa "TARAMA BOŞ" yaz, tahminle doldurma.
+- Bir girdi dosyasının hatalı/eksik/yanlış olduğunu İDDİA EDECEKSEN önce
+  ondan ALINTI yap: ilk 3 satırı ve satır sayısını yaz. Alıntı yapamıyorsan
+  iddiayı yazma ve görevi dosyanın gerçek içeriğiyle yap. Bir dosyanın
+  bozuk olduğunu varsayıp görevi atlamak YASAK.
+- Kesilirsen hedef dosyayı oku, KALDIĞIN YERDEN devam et.
+- Türkçe yaz, teknik terimleri İngilizce bırak.
+
+
+# BU TURUN KAPSAMI — ELLE DOLDUR
+Bir turda EN FAZLA 3 ekran. Aşağıdaki iki satırı düzenle, gerisine dokunma.
+
+Grup adı : 01-pricing-ailesi
+Ekranlar : PG_ApplicationPricing, PG_ApplicationPricingTrio
+
+# GİRDİ
+#file:docs/entry-akis/REHBER.md
+#file:docs/entry-akis/_diyagram/DIYAGRAMLAR.md
+
+Yukarıdaki "Ekranlar" satırındaki her ekran için kartını da ekle:
+#file:docs/entry-akis/ekranlar/PG_ApplicationPricing.hazir.md
+#file:docs/entry-akis/ekranlar/PG_ApplicationPricingTrio.hazir.md
+(kart dosyası yoksa DUR, "KART YOK" yaz — M4'ün üretmesi gerekiyordu)
+
+# GÖREV
+Kapsamdaki her ekran için REHBER.md'nin ekran ekran anlatımını
+DERİNLEŞTİREN bir ek yaz.
+
+Kart (`*.hazir.md`) referans formatında: tablo, liste, künye. Bu ek ise
+ANLATIM. Aynı bilgiyi tekrar tablolamayacaksın — karta bakması gerektiğinde
+"kartta: <bölüm adı>" diye yönlendireceksin.
+
+# ÇIKTI — docs/entry-akis/REHBER-EK-<grup adı>.md
+
+Her ekran için:
+
+## <PG_X> — <ekranın bir cümlelik işi>
+
+### Kullanıcı ne görüyor
+HTML'deki widget'lardan: hangi alanlar, hangi butonlar, hangi bölümler,
+hangi included page'ler. Ekranı görmemiş biri kafasında canlandırabilmeli.
+
+### Buraya nasıl gelinir, buradan nereye gidilir
+CCT'deki giriş geçişleri ve çıkış olayları. Her çıkış için: hangi buton,
+hangi ControllerEvent token'ı, hangi hedef.
+
+### Adım adım ne oluyor
+Sayfa açıldığında → kullanıcı doldururken → butona bastığında sırasıyla
+hangi kod çalışıyor. Metot adı ve satır ver. Bu bölümün sonuna bir
+mermaid sequenceDiagram koy: Kullanici → PG_X → servis → BE.
+Kanıtı olmayan oku çizme; "Note over PG_X: ... — KANIT YOK" yaz.
+
+### Validasyonlar
+Hangi kural, hangi katmanda (js / java / servis / properties), hata mesajı
+kullanıcıya nasıl gösteriliyor. Aynı kural birden çok katmanda varsa söyle.
+
+### Ters giden durumlar
+Servis hata dönerse, zorunlu alan boşsa, kullanıcı geri basarsa ne oluyor.
+Catch bloklarından ve iptal davranışından çıkar.
+
+### Bu ekranın tuhaflıkları
+Yoruma alınmış bloklar, ölü kod, kopyalanmış mantık, eksik lang key'ler,
+diğer ekranlardan farklı davrandığı yerler. Kartta zaten listeli olanı
+tekrar etme; NİYE önemli olduğunu söyle.
+
+### Bu ekrana dokunacaksan
+Somut: "şu alanı eklemek için şu 5 dosya, şu sırayla, şunu unutma."
+
+# İŞ GEREKÇESİ KURALI
+Kod NE yaptığını söyler, NİÇİN yaptığını söylemez. Bir iş kuralının
+gerekçesini koddan çıkaramıyorsan satır sonuna [İŞ BİRİMİNE SORULACAK]
+yaz ve dosyanın sonundaki listeye ekle. Tahmini gerekçe yazmak bu dokümanı
+zararlı hâle getirir.
+
+# ÇALIŞMA SIRASI
+Ekranları TEK TEK işle. Bir ekranın yedi bölümünü bitir, DOSYAYA YAZ,
+sonra diğerine geç. Sonda toplu yazma — zaman aşımı alırsan hiçbir şey kalmaz.
+Kesilirsen hedef dosyayı oku, kaldığın ekrandan devam et.
+
+# KURAL
+İyileştirme önerisi yazma; "nasıl çalışıyor"u anlat.
+Super sınıflardan iş mantığı çıkarma — yalnızca alan/widget sözleşmesi
+ve included page için aç.

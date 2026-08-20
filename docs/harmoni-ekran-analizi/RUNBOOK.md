@@ -1155,6 +1155,63 @@ Bilmediğin iş gerekçesini uydurma.
 
 ---
 
+## M12 — Diyagramlar (Adım 18'in girdisi)
+
+Adım 17'nin çıktısı düz metin. Rehberi görsel hâle getirmeden önce
+`MEKANIZASYON.md` → **M12** bloğunu çalıştır. Beş Mermaid diyagramını
+script üretir: akış grafiği (conversation'lara göre gruplu), ekran → servis
+haritası, paylaşılan state, karar noktaları ve ekran anatomisi.
+
+Bunları modele çizdirmek yanlış: düğüm adını yanlış yazar, kenar atlar,
+kapsam dışı hedefi uydurur. Hepsi CSV'lerden ve java taramasından
+deterministik olarak çıkıyor.
+
+Çıktı: `docs/entry-akis/_diyagram/DIYAGRAMLAR.md`
+
+---
+
+## [CP] Adım 18 — Rehberi diyagramlarla derinleştir
+
+Yeni chat, **Sonnet**. Hazır prompt: `promptlar/18-rehber-diyagram.txt`.
+
+`REHBER.md`'yi **yerinde** günceller: M12'nin diyagramlarını doğru bölümlere
+yerleştirir, etrafına "burada ne göreceksin / neye dikkat et" anlatımı yazar,
+14 ekranlık özet tablo ekler ve üç uçtan uca senaryoyu `sequenceDiagram`
+olarak çizer (mutlu yol / en sık dallanma / iptal).
+
+Üç kural bu adımı ayakta tutuyor:
+
+| Kural | Neden |
+|---|---|
+| Mevcut içeriği silme, `[İŞ BİRİMİNE SORULACAK]` işaretlerini koru | 17'nin kazandığı iş katmanı boşluk haritası kaybolmasın |
+| Mermaid bloklarını olduğu gibi kopyala, düzeltme | Elle düzeltilen diyagram M12'nin bir sonraki koşusunda kaybolur ve kodla ayrışır |
+| sequenceDiagram'daki her ok kanıta dayansın, olmayan ok çizilmesin | Bir sequence diagram tamamlanmak ister; model boşluğu doldurmaya çok meyilli. Kanıtsız adım `Note over ...: — KANIT YOK` olarak kalır |
+
+Prompt işi dört parçaya bölüp her parçadan sonra dosyaya yazdırıyor —
+kesilirse kaldığı yerden devam eder.
+
+---
+
+## [CP] Adım 19 — Ekran ekran derinlik (isteğe bağlı)
+
+Yeni chat, **Sonnet**, **grup başına bir tur**. Hazır prompt:
+`promptlar/19-ekran-derinlik.txt`.
+
+Adım 12'nin ürettiği kartlar referans formatında — tablo ve künye. Bu adım
+onları **anlatıma** çevirir: kullanıcı ne görüyor, adım adım hangi kod
+çalışıyor, hangi validasyon hangi katmanda, ters giden durumda ne oluyor,
+bu ekrana dokunacak biri hangi dosyalara ne sırayla bakmalı. Ekran başına
+bir `sequenceDiagram` de üretir.
+
+Prompt'un `# BU TURUN KAPSAMI` bölümündeki iki satırı elle düzenle
+(grup adı + ekranlar) ve kart dosyalarını `#file:` ile ekle. Turda en fazla
+3 ekran. Çıktı: `docs/entry-akis/REHBER-EK-<grup>.md`.
+
+Adım 18 rehberi kullanılabilir hâle getiriyor; 19 onu referans belgesine
+dönüştürüyor. Akışa fiilen dokunacak ekipte değilsen 18'de durmak makul.
+
+---
+
 ## [CP] Adım 16 — İyileştirme planı
 
 Yeni chat. P0 + aşağısı.

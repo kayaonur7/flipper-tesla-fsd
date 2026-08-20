@@ -7,10 +7,12 @@ hangisinin kime, ne zaman lazım olduğunu söyler.
 
 ```
 _tarama/*.txt          HAM KANIT      script üretti, kimse baştan sona okumaz
+_diyagram/*.md         ÇİZİM KAYNAĞI  M12 üretti, REHBER'e kopyalanır
 00a / 00b / 00c*       ARA ÜRÜN       analiz sırasında kullanıldı
 ekranlar/*.hazir.md    REFERANS       ekrana dokunacak kişi açar
 90a / 90b / 90c        SİSTEMİK       akış seviyesi problemler
 99-iyilestirme.md      KARAR          tek okunacak dosya
+REHBER.md (+EK'ler)    ANLATIM        yeni gelene verilecek dosya
 ```
 
 ## Kime hangi dosya
@@ -18,7 +20,8 @@ ekranlar/*.hazir.md    REFERANS       ekrana dokunacak kişi açar
 | Kim / ne zaman | Ne okur |
 |---|---|
 | **Karar verecek olan** (lead, PO) — "ne yapalım?" | `99-iyilestirme.md`. Tek dosya. Bulgular etki × efor sıralı, quick win'ler ayrı, hangi testlerin önce yazılacağı yazılı |
-| **Akışı öğrenecek olan** (yeni geliştirici) | `REHBER.md` — Adım 17'nin ürettiği onboarding dokümanı. Analiz çıktıları problem bulmaya göre yazıldı, bu ise anlatım. Teknik akış için `00b-akis-otomatik.md` grafiği yanında |
+| **Akışı öğrenecek olan** (yeni geliştirici) | `REHBER.md` — Adım 17 yazar, Adım 18 diyagramlar ve uçtan uca senaryolarla derinleştirir. Analiz çıktıları problem bulmaya göre yazıldı, bu ise anlatım |
+| **Bir ekranı devralacak olan** | `REHBER-EK-<grup>.md` — Adım 19. Ekranın adım adım ne yaptığı, validasyon katmanları, hata yolları, "dokunacaksan şu 5 dosya" |
 | **Bir ekrana dokunacak olan** | `ekranlar/<PG_X>.hazir.md`. O ekranın dosya ayak izi, CCT künyesi, olayları, servisleri, validasyonları, catch blokları, dil durumu — hepsi tek yerde |
 | **Değişikliğin etkisini ölçecek olan** | `00c1-state.md` (hangi alan hangi ekranlar arası taşınıyor) + `90b` (servis envanteri, kapsam dışı bağımlılıklar) |
 | **Test yazacak olan** | `99-iyilestirme.md`'nin "önce yazılması gereken karakterizasyon testleri" bölümü + `90a`'daki uçtan uca senaryolar |
@@ -28,7 +31,9 @@ ekranlar/*.hazir.md    REFERANS       ekrana dokunacak kişi açar
 
 | Soru | Dosya |
 |---|---|
-| Bu akış hangi ekranlardan geçiyor, hangi sırayla? | `00b-akis-otomatik.md` §4 (grafik) |
+| Bu akış hangi ekranlardan geçiyor, hangi sırayla? | `REHBER.md` Bölüm 3 (D1 grafiği + anlatım). Ham hâli: `_diyagram/DIYAGRAMLAR.md` D1 |
+| Bir başvuru baştan sona nasıl ilerliyor? | `REHBER.md` §3B — üç uçtan uca senaryo, sequenceDiagram |
+| Bir ekran hangi dosyalardan oluşuyor? | `_diyagram/DIYAGRAMLAR.md` D5 |
 | Şu ekran nereden açılıyor? | `00b-akis.md` §2-3, `_tarama/23-acik-sorular.txt` bölüm C |
 | Bu alanı değiştirirsem nereler kırılır? | `00c1-state.md` §2 |
 | Hangi servisler akışın omurgası? | `00c2-servis-dto.md` §1, `_tarama/25-servis-matrisi.txt` |
@@ -51,8 +56,14 @@ dokunulduğunda `00b`, `00c1` ve ilgili ekran kartı yanlışa döner. İki seç
 - Kod değişikliğiyle birlikte ilgili kartı güncelle (PR kuralı hâline getir)
 - Ya da tarih damgası koy ve "şu tarihli fotoğraf" diye kullan
 
-İkincisi daha gerçekçi. Mekanizasyon blokları (`M0`-`M11`) sayesinde tarama
+İkincisi daha gerçekçi. Mekanizasyon blokları (`M0`-`M12`) sayesinde tarama
 katmanını yeniden üretmek yarım saat; asıl emek yorum katmanında.
+
+Diyagramlarda bu daha da kolay: `REHBER.md`'deki Mermaid blokları M12'nin
+ürettiği `_diyagram/DIYAGRAMLAR.md`'den kopyalanıyor. Akış değişince M0 + M12
+koş, yeni blokları rehberdeki eskilerin üzerine yapıştır — anlatım metni
+yerinde kalır. **Bu yüzden diyagramları rehberde elle düzeltme:** bir sonraki
+koşuda kaybolur ve o arada kodla ayrışmış olur.
 
 **4. Bir sonraki akış çok daha ucuz.** `annulment`, `branchopening`, `inquiry`
 için `RUNBOOK.md`'deki kökleri ve `MEKANIZASYON.md`'deki `$gruplar`'ı
